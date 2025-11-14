@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rendelő – Heti időpontfoglaló (minta)</title>
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#0a0f1c; --panel:#0b1222; --muted:#9ca3af; --text:#e5e7eb; --accent:#22d3ee;
+    --line:#1f2937; --line-2:#111827; --line-dash:#1f2937;
+    --laneW:220px; --laneG:8px; --timeW:120px; --slotH:36px;
+    --headerH:56px; --colHeadH:48px;
+    --pill-bg:#0b1222; --pill-border:#334155; --pill-text:#e5e7eb;
+    --appt-bg-grad1:#0f2a37; --appt-bg-grad2:#0d1f2b; --appt-border:#164e63; --appt-text:#e2e8f0; --appt-shadow:rgba(0,0,0,.35);
+    --nowline-shadow:rgba(34,211,238,.7);
+    --toast-bg:#111827; --toast-border:#374151;
+    --search-bg:#0b1222; --search-border:#1f2937;
+    --modal-bg:#0f172a; --modal-border:#1f2937;
+    --off-stripe1:rgba(239,68,68,.18); --off-stripe2:rgba(239,68,68,.05); --off-grad1:rgba(127,29,29,.25); --off-grad2:rgba(88,28,28,.25); --off-label-bg:#1f2937; --off-label-border:#374151;
+    --suggest-stripe1:rgba(16,185,129,.22); --suggest-stripe2:rgba(16,185,129,.08); --suggest-border:#16a34a;
+    --whole-bg:rgba(8,145,178,.15); --half-bg:rgba(8,145,178,.08);
+  }
+  body.light{
+    --bg:#f6f7fb; --bg2:#f6f7fb; --panel:#ffffff; --muted:#6b7280; --text:#111827; --accent:#0891b2;
+    --line:#d1d5db; --line-2:#e5e7eb; --line-dash:#e5e7eb;
+    --pill-bg:#f3f4f6; --pill-border:#d1d5db; --pill-text:#111827;
+    --appt-bg-grad1:#ffffff; --appt-bg-grad2:#ffffff; --appt-border:#cfe8ee; --appt-text:#0f172a; --appt-shadow:rgba(0,0,0,.08);
+    --nowline-shadow:rgba(8,145,178,.5);
+    --toast-bg:#ffffff; --toast-border:#d1d5db;
+    --search-bg:#ffffff; --search-border:#d1d5db;
+    --modal-bg:#ffffff; --modal-border:#d1d5db;
+    --off-stripe1:rgba(239,68,68,.10); --off-stripe2:rgba(239,68,68,.05);
+    --off-grad1:rgba(239,68,68,.08); --off-grad2:rgba(239,68,68,.06);
+    --off-label-bg:#f3f4f6; --off-label-border:#d1d5db;
+    --whole-bg:rgba(8,145,178,.22); --half-bg:rgba(8,145,178,.10);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; transition:background .25s,color .25s}
+  header{position:sticky;top:0;z-index:20;background:rgba(17,24,39,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  body.light header{background:rgba(255,255,255,.9)}
+  .bar{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;max-width:1400px;margin:0 auto}
+  .title{font-weight:700}
+  .spacer{flex:1}
+  button{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:.5rem .75rem;border-radius:.6rem;cursor:pointer;transition:.15s}
+  button:hover{border-color:#334155}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input[type="text"], input[type="date"], input[type="time"], select, textarea{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:.5rem .75rem;border-radius:.6rem}
+
+  .layout{
+    display:grid;
+    grid-template-columns:320px minmax(0,1fr);
+    gap:12px;
+    width:100%;
+    max-width:none;
+    margin:0;
+    padding:0 0 1rem 0;
+  }
+  .waitlist{position:sticky;top:calc(var(--headerH) + 8px);align-self:start;background:var(--panel);border:1px solid var(--line);border-radius:.75rem; padding:.75rem; margin-left:1rem}
+  .wl-title{font-weight:700; margin-bottom:.5rem}
+  .wl-form{display:grid; grid-template-columns: 1fr 90px; gap:.5rem; margin-bottom:.75rem}
+  .wl-form > div{grid-column:1/3}
+  .wl-list{display:flex; flex-direction:column; gap:.5rem; max-height:50vh; overflow:auto}
+  .wl-card{border:1px solid var(--line); background:linear-gradient(180deg,var(--appt-bg-grad1),var(--appt-bg-grad2)); color:var(--appt-text); padding:.5rem .6rem; border-radius:.5rem; cursor:grab}
+  .wl-card .nm{font-weight:700}
+  .wl-card.dragging{opacity:.7}
+
+  .calwrap{min-width:0;width:100%;}
+
+  .weekbar{display:flex;align-items:center;gap:.5rem;margin:.5rem 1rem 1rem 0}
+  .grid{display:grid;border:1px solid var(--line);border-radius:12px;width:100%;overflow-x:hidden;background:var(--panel)}
+  .colhead{position:sticky;top:calc(var(--headerH));z-index:10;background:linear-gradient(180deg,var(--bg),var(--bg));border-bottom:1px solid var(--line);padding:.6rem .5rem;text-align:center;font-weight:600;cursor:pointer;user-select:none}
+  .colhead:first-child{cursor:default}
+  .colhead .date{display:block;color:var(--muted);font-weight:400;font-size:.85rem;margin-top:.2rem}
+  .timecol{background:var(--panel);border-right:1px solid var(--line);padding-top:var(--colHeadH)}
+  .timecell{height:var(--slotH);border-bottom:1px dashed var(--line-dash);color:var(--muted);font-size:.8rem;display:flex;align-items:center;justify-content:center}
+  .timecell.whole{background:var(--whole-bg);font-weight:800}
+  .timecell.half{background:var(--half-bg);font-weight:600}
+  .daycol{position:relative;background:linear-gradient(180deg,#0c1325,#0b1222);border-left:1px solid var(--line-2);padding-top:var(--colHeadH)}
+  body.light .daycol{background:var(--panel)}
+  .slot{height:var(--slotH);border-bottom:1px dashed var(--line-dash)}
+  .slot.today{background:rgba(34,211,238,.06)}
+  .nowline{position:absolute;left:0;right:0;height:2px;background:var(--accent);box-shadow:0 0 8px var(--nowline-shadow);pointer-events:none}
+
+  .appt{position:absolute;border:1px solid var(--appt-border);background:linear-gradient(180deg,var(--appt-bg-grad1),var(--appt-bg-grad2));color:var(--appt-text);border-radius:.6rem;padding:.35rem .5rem;font-size:.86rem;box-shadow:0 6px 16px var(--appt-shadow);cursor:grab;min-height:44px;overflow:hidden;transition:.2s}
+  .appt:active{cursor:grabbing}
+  .appt.plus1{
+    border-color:#a16207;
+    background-image:repeating-linear-gradient(45deg, rgba(250,204,21,.18) 0 10px, rgba(0,0,0,0) 10px 20px),linear-gradient(180deg,var(--appt-bg-grad1),var(--appt-bg-grad2));
+  }
+  .appt .name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:64px;pointer-events:none}
+  .appt .name .hit{pointer-events:auto;cursor:pointer}
+  .appt .name .hit:hover{text-decoration:underline}
+  .appt.prosthesis .name{color:#ef4444}
+  .appt .note{
+    font-size:.78rem;
+    opacity:.85;
+    margin-top:2px;
+    max-height:2.4em;
+    overflow:hidden;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    pointer-events:none;
+  }
+
+  .appt .actions-top{position:absolute;top:4px;right:4px;display:flex;gap:.25rem}
+  .appt .actions-br{position:absolute;right:4px;bottom:4px;display:flex;gap:.25rem}
+  .appt .actions-bl{position:absolute;left:4px;bottom:4px;display:flex;gap:.25rem}
+
+  .appt.compact .actions-top,.appt.compact .actions-br{display:none}
+  .appt.compact .name{padding-right:8px}
+  .pill{font-size:.72rem;line-height:1;border:1px solid var(--pill-border);border-radius:.5rem;padding:.15rem .35rem;background:var(--pill-bg);color:var(--pill-text);cursor:pointer;user-select:none}
+
+  .appt.attended{border-color:#14532d;background:linear-gradient(180deg,#0b2a12,#0b1f16)}
+  .appt.no-show{border-color:#7f1d1d;background:linear-gradient(180deg,#2b0d0d,#1f0d0d)}
+  .appt.lemondta{border-color:#b45309;background:linear-gradient(180deg,#2b1a0a,#1f1407)}
+  .appt.cancelled{opacity:.85;text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#ef4444;border-style:dashed}
+  .appt.no-show.cancelled{background:linear-gradient(180deg,#2b0d0d,#1f0d0d); opacity:1}
+  /* ÚJ: Lemondta + Kihúzva esetben maradjon a lemondás háttere */
+  .appt.lemondta.cancelled{background:linear-gradient(180deg,#2b1a0a,#1f1407);border-color:#b45309;}
+
+  body.light .appt.attended{border-color:#16a34a;background:#ecfdf5}
+  body.light .appt.no-show{border-color:#ef4444;background:#fef2f2}
+  body.light .appt.lemondta{border-color:#f59e0b;background:#fffbeb}
+  body.light .appt.cancelled{border-color:#9ca3af;background:#f9fafb; text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#ef4444}
+  body.light .appt.no-show.cancelled{background:#fee2e2; opacity:1}
+  body.light .appt.plus1{border-color:#f59e0b;background-image:repeating-linear-gradient(45deg, rgba(253,230,138,.6) 0 10px, rgba(0,0,0,0) 10px 20px),linear-gradient(180deg,#ffffff,#ffffff)}
+  /* ÚJ: Lemondta + Kihúzva light módban is maradjon a lemondás háttere */
+  body.light .appt.lemondta.cancelled{background:#fffbeb;border-color:#f59e0b;}
+
+  .appt.picked{outline:2px solid #fde68a; box-shadow:0 0 0 4px rgba(253,230,138,.25), 0 6px 16px rgba(0,0,0,.25)}
+  body.light .appt.picked{box-shadow:0 0 0 3px rgba(253,230,138,.7)}
+
+  .handle{position:absolute;left:0;right:0;height:8px;cursor:ns-resize;opacity:.7}
+  .handle.top{top:0}
+  .handle.bottom{bottom:0}
+  .handle:after{content:"";display:block;margin:0 auto;width:40px;height:2px;background:#64748b;border-radius:2px;opacity:.8}
+  body.light .handle:after{background:#94a3b8}
+
+  .movebar{position:fixed; left:50%; transform:translateX(-50%); bottom:12px; z-index:19; background:rgba(9,17,27,.92); color:#e5e7eb; border:1px solid #153049; padding:.35rem .6rem; border-radius:.5rem; display:none; align-items:center; gap:.5rem; pointer-events:none; opacity:.96; font-size:.9rem; box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  body.light .movebar{background:rgba(255,255,255,.9); color:#0f172a; border:1px solid #cfe8ee}
+  .movebar.show{display:flex}
+
+  .searchbox{position:relative}
+  .search-results{position:absolute;background:var(--search-bg);border:1px solid var(--search-border);margin-top:.25rem;border-radius:.6rem;overflow:hidden;display:none;max-height:280px;overflow-y:auto;z-index:18;min-width:220px}
+  .search-results div{padding:.5rem .6rem;border-bottom:1px solid var(--line-2);cursor:pointer}
+  .search-results div:hover{background:rgba(15,23,42,.6)}
+  body.light .search-results div:hover{background:#f1f5f9}
+
+  .side{position:fixed;top:calc(var(--headerH));right:0;bottom:0;width:0;overflow:hidden;background:var(--panel);border-left:1px solid var(--line);transition:width .2s ease;z-index:21}
+  .side.open{width:420px}
+  .side .inner{padding:1rem;height:100%;overflow:auto}
+  .chip{display:inline-block;border:1px solid #334155;border-radius:999px;padding:.15rem .5rem;font-size:.75rem;background:#0d1728;margin:.15rem .2rem 0 0;color:#cbd5e1}
+  .chip.attended{background:#0b2a12;border-color:#14532d;color:#bbf7d0}
+  .chip.no-show{background:#2b0d0d;border-color:#7f1d1d;color:#fecaca}
+  .chip.cancelled{background:#15171b;border-color:#ef4444;color:#fde68a}
+  .chip.plus1{background:#3a2c09;border-color:#a16207;color:#fde68a}
+  .chip.prosthesis{background:#3f1d1d;border-color:#ef4444;color:#fecaca}
+  .chip.lem{background:#1f2933;border-color:#b45309;color:#fed7aa}
+  body.light .chip{background:#eef2ff;color:#1f2937;border-color:#c7d2fe}
+  body.light .chip.no-show{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
+  body.light .chip.attended{background:#dcfce7;border-color:#86efac;color:#14532d}
+  body.light .chip.cancelled{background:#f3f4f6;border-color:#ef4444;color:#7f1d1d}
+  body.light .chip.plus1{background:#fef3c7;border-color:#fde68a;color:#92400e}
+  body.light .chip.prosthesis{background:#fee2e2;border-color:#ef4444;color:#7f1d1d}
+  body.light .chip.lem{background:#fffbeb;border-color:#fbbf24;color:#92400e}
+
+  .row{padding:.5rem .5rem .5rem .75rem;border-bottom:1px dashed var(--line);position:relative;cursor:pointer}
+  .row::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:2px;background:#334155}
+  .row.attended::before{background:#16a34a}
+  .row.no-show::before{background:#dc2626}
+  .row.cancelled::before{background:#64748b}
+  .row.plus1::before{background:#a16207}
+  .row.lemondta::before{background:#b45309}
+  .row .title{font-weight:600}
+
+  dialog{border:1px solid var(--modal-border);background:var(--modal-bg);color:var(--text);border-radius:12px;width:min(860px,96vw);padding:0}
+  dialog::backdrop{background:rgba(0,0,0,.55)}
+  dialog form{margin:0}
+  label{display:block;font-size:.85rem;color:var(--muted);margin:.25rem 0}
+  dialog input, dialog select, dialog textarea{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:.6rem;padding:.45rem .6rem;width:100%}
+  .togglebar{display:flex;gap:.5rem;flex-wrap:wrap}
+  .tbtn{padding:.4rem .65rem;border:1px solid #334155;border-radius:.5rem;background:#0b1222;color:var(--text);cursor:pointer}
+  .tbtn.active{background:#153049;border-color:#22d3ee;box-shadow:0 0 0 2px rgba(34,211,238,.18) inset}
+  .tbtn.att{border-color:#14532d}
+  .tbtn.ns{border-color:#7f1d1d}
+  .tbtn.can{border-color:#ef4444}
+  .tbtn.p1{border-color:#a16207}
+  .tbtn.lem{border-color:#b45309}
+  body.light .tbtn{background:#f3f4f6;border-color:#d1d5db}
+  .preview{margin-top:.35rem}
+  .preview .chip{margin-top:.35rem}
+
+  .offblock{position:absolute; left:0; right:0; background:repeating-linear-gradient(45deg, var(--off-stripe1) 0 12px, var(--off-stripe2) 12px 24px),linear-gradient(180deg, var(--off-grad1), var(--off-grad2)); border-top:1px solid rgba(239,68,68,.35); border-bottom:1px solid rgba(239,68,68,.35); pointer-events:none; border-radius:.4rem; z-index:2}
+  .offblock .label{position:absolute; right:6px; top:4px; font-size:.72rem; opacity:.9; background:var(--off-label-bg); border:1px solid var(--off-label-border); padding:.1rem .35rem; border-radius:.35rem}
+  .colhead.off-day::after{content:" ☂"; color:#fca5a5; font-weight:400}
+
+  .suggestblock{position:absolute; left:0; right:0; pointer-events:none; border-radius:.4rem; background:repeating-linear-gradient(45deg, var(--suggest-stripe1) 0 12px, var(--suggest-stripe2) 12px 24px); border:2px dashed var(--suggest-border); box-shadow:0 6px 14px rgba(16,185,129,.25), inset 0 0 0 2px rgba(16,185,129,.2); z-index:3}
+
+  .toast{position:fixed; left:50%; transform:translateX(-50%); top:calc(var(--headerH) + 8px); z-index:50; background:var(--toast-bg); border:1px solid var(--toast-border); padding:.5rem .8rem; border-radius:.5rem; font-size:.9rem; display:none}
+  .toast.show{display:block}
+</style>
+</head>
+<body>
+<header id="appHeader">
+  <div class="bar">
+    <div class="title">🦷 Heti időpontfoglaló – minta</div>
+    <div class="spacer"></div>
+    <div class="searchbox">
+      <input id="search" type="text" placeholder="Keresés: páciens név…" autocomplete="off" />
+      <div id="searchResults" class="search-results"></div>
+    </div>
+    <button id="undoBtn" disabled>↶ Visszavonás</button>
+    <button id="offBtn">+ Szabadság</button>
+    <button id="newBtn">+ Új</button>
+    <button id="findBtn">🔍 Szabad idő</button>
+    <button id="themeBtn" title="Nappali / Éjszakai mód">🌞</button>
+  </div>
+  <div id="moveBar" class="movebar">Másolás mód: kattints a cél idősávra (Esc: kilépés)</div>
+</header>
+
+<div class="layout">
+  <aside class="waitlist" id="waitlistPane">
+    <div class="wl-title">Várólista</div>
+    <div class="wl-form">
+      <input id="wlName" placeholder="Név">
+      <select id="wlDur">
+        <option value="15">15p</option>
+        <option value="30" selected>30p</option>
+        <option value="45">45p</option>
+        <option value="60">60p</option>
+        <option value="90">90p</option>
+      </select>
+      <button id="wlAdd">Hozzáadás</button>
+    </div>
+    <div class="wl-list" id="wlList"></div>
+    <div style="margin-top:.5rem; display:flex; gap:.5rem">
+      <button id="wlClear">Várólista törlése</button>
+    </div>
+  </aside>
+
+  <div class="calwrap">
+    <div class="weekbar">
+      <button id="prevWeek">← Előző hét</button>
+      <button id="thisWeek">Aktuális hét</button>
+      <button id="nextWeek">Következő hét →</button>
+      <span id="weekLabel" style="font-weight:600;margin-left:.75rem"></span>
+    </div>
+    <div id="grid" class="grid" aria-label="Heti időpont rács"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast">Erre az idősávra SZABADSÁG van beállítva.</div>
+
+<aside id="side" class="side" aria-label="Páciens adatlap">
+  <div class="inner" id="sideInner"></div>
+</aside>
+
+<dialog id="modal">
+  <div style="padding:1rem;border-bottom:1px solid var(--line);font-weight:700" id="modalTitle">Új időpont</div>
+  <form id="modalForm" method="dialog">
+    <div style="padding:1rem;display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div><label>Név</label><input id="mName" required list="patientList" /><datalist id="patientList"></datalist></div>
+      <div><label>Telefon</label><input id="mPhone"/></div>
+      <div><label>Kezdés (HH:MM)</label><input id="mStartTime" required/></div>
+      <div><label>Hossz (perc)</label><select id="mDuration"><option>15</option><option selected>30</option><option>45</option><option>60</option><option>90</option></select></div>
+      <div><label>Nap</label><select id="mDay"></select></div>
+      <div><label>Dátum</label><input id="mDate" disabled/></div>
+
+      <div style="grid-column:1/3">
+        <label>Státuszok</label>
+        <div id="statusBar" class="togglebar" role="group" aria-label="Státuszok">
+          <span class="tbtn att" data-act="attended">Megjelent</span>
+          <span class="tbtn ns"  data-act="no-show">Nem jött</span>
+          <span class="tbtn lem" data-act="lemondta">Lemondta</span>
+          <span class="tbtn can" data-act="cancelled">Kihúzva</span>
+          <span class="tbtn p1"  data-act="plus1">+1</span>
+        </div>
+        <div id="statusPreview" class="preview"></div>
+      </div>
+
+      <div style="grid-column:1/3;display:flex;gap:.5rem;align-items:center">
+        <input type="checkbox" id="mProsthesis" />
+        <label for="mProsthesis" style="margin:0;cursor:pointer">Fogpótlás készül (név pirossal)</label>
+      </div>
+
+      <div style="grid-column:1/3"><label>Megjegyzés</label><textarea id="mNotes" style="min-height:78px"></textarea></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;gap:.5rem;padding:0 1rem 1rem">
+      <button type="button" id="deleteBtn" style="border-color:#7f1d1d">Törlés</button>
+      <div>
+        <button type="button" id="cancelBtn">Mégse</button>
+        <button type="submit" id="saveBtn">Mentés</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="offModal">
+  <div style="padding:1rem;border-bottom:1px solid var(--line);font-weight:700">Szabadság beállítása</div>
+  <form id="offForm" method="dialog">
+    <div style="padding:1rem;display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div><label>Kezdő dátum</label><input id="offStartDate" type="date" required></div>
+      <div><label>Záró dátum</label><input id="offEndDate" type="date" required></div>
+      <div><label>Napi kezdés (HH:MM)</label><input id="offStartTime" value="08:00" required></div>
+      <div><label>Napi zárás (HH:MM)</label><input id="offEndTime" value="19:00" required></div>
+      <div style="grid-column:1/3"><label>Megjegyzés</label><input id="offNote" placeholder="pl. Nyári szabadság"></div>
+      <div style="grid-column:1/3; font-size:.85rem; color:var(--muted)">A dátumtartomány minden munkanapjára (H–P) létrejön a tiltás a megadott napi idősávban.</div>
+      <div style="grid-column:1/3">
+        <div style="font-weight:600;margin:.25rem 0 .35rem">Aktív szabadságok</div>
+        <div id="offList" style="max-height:160px;overflow:auto;border:1px solid var(--line);border-radius:.5rem"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:.5rem;padding:0 1rem 1rem">
+      <button type="button" id="offDeleteAll" style="border-color:#7f1d1d">Összes törlése</button>
+      <div>
+        <button type="button" id="offCancelBtn">Mégse</button>
+        <button type="submit" id="offSaveBtn">Mentés</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="findModal">
+  <div style="padding:1rem;border-bottom:1px solid var(--line);font-weight:700">Szabad idő keresése</div>
+  <form id="findForm" method="dialog">
+    <div style="padding:1rem;display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div><label>Kezdő dátum</label><input id="fStartDate" type="date" required></div>
+      <div><label>Időtartam (perc)</label><select id="fDuration"><option>15</option><option selected>30</option><option>45</option><option>60</option><option>90</option></select></div>
+      <div style="grid-column:1/3">
+        <label>Mely napokon keressen?</label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <label><input type="checkbox" class="fDay" value="0" checked> H</label>
+          <label><input type="checkbox" class="fDay" value="1" checked> K</label>
+          <label><input type="checkbox" class="fDay" value="2" checked> Sze</label>
+          <label><input type="checkbox" class="fDay" value="3" checked> Cs</label>
+          <label><input type="checkbox" class="fDay" value="4" checked> P</label>
+        </div>
+      </div>
+      <div><label>Napi időszak – mettől (HH:MM)</label><select id="fFrom" required></select></div>
+      <div><label>Napi időszak – meddig (HH:MM)</label><select id="fTo" required></select></div>
+
+      <div style="grid-column:1/3; display:flex; gap:.5rem; align-items:center; margin-top:.25rem">
+        <button type="submit" id="fSearchBtn">Keresés</button>
+        <button type="button" id="fNextBtn" disabled>Következő találat ▶</button>
+        <button type="button" id="fClearMark">Jelölés törlése</button>
+      </div>
+
+      <div id="fResult" style="grid-column:1/3; margin-top:.5rem"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;padding:0 1rem 1rem">
+      <button type="button" id="findCancelBtn">Bezár</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function(){
+  const HOUR_START=8, HOUR_END=19, SLOT_MIN=15, SLOT_H=36;
+
+  const themeBtn = document.getElementById('themeBtn');
+  const savedTheme = localStorage.getItem('theme');
+  if(savedTheme==='light'){ document.body.classList.add('light'); themeBtn.textContent='🌙'; }
+  themeBtn.addEventListener('click',()=>{
+    document.body.classList.toggle('light');
+    const isLight = document.body.classList.contains('light');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    themeBtn.textContent = isLight ? '🌙' : '🌞';
+  });
+
+  const headerEl=document.getElementById('appHeader');
+  function setHeaderOffset(){ document.documentElement.style.setProperty('--headerH', (headerEl.offsetHeight||56)+'px'); }
+  window.addEventListener('load', setHeaderOffset);
+  window.addEventListener('resize', setHeaderOffset);
+
+  const gridEl=document.getElementById('grid');
+  const weekLabel=document.getElementById('weekLabel');
+  const prevWeekBtn=document.getElementById('prevWeek');
+  const nextWeekBtn=document.getElementById('nextWeek');
+  const thisWeekBtn=document.getElementById('thisWeek');
+  const newBtn=document.getElementById('newBtn');
+  const undoBtn=document.getElementById('undoBtn');
+  const offBtn=document.getElementById('offBtn');
+  const findBtn=document.getElementById('findBtn');
+  const toast=document.getElementById('toast');
+
+  const side=document.getElementById('side');
+  const sideInner=document.getElementById('sideInner');
+
+  const searchInput=document.getElementById('search');
+  const searchResults=document.getElementById('searchResults');
+
+  const modal=document.getElementById('modal');
+  const modalTitle=document.getElementById('modalTitle');
+  const form=document.getElementById('modalForm');
+  const mName=document.getElementById('mName');
+  const patientListEl=document.getElementById('patientList');
+  const mPhone=document.getElementById('mPhone');
+  const mStartTime=document.getElementById('mStartTime');
+  const mDuration=document.getElementById('mDuration');
+  const mDay=document.getElementById('mDay');
+  const mDate=document.getElementById('mDate');
+  const mNotes=document.getElementById('mNotes');
+  const mProsthesis=document.getElementById('mProsthesis');
+  const statusBar=document.getElementById('statusBar');
+  const statusPreview=document.getElementById('statusPreview');
+  const deleteBtn=document.getElementById('deleteBtn');
+  const cancelBtn=document.getElementById('cancelBtn');
+
+  const moveBar=document.getElementById('moveBar');
+
+  const offModal=document.getElementById('offModal');
+  const offForm=document.getElementById('offForm');
+  const offStartDate=document.getElementById('offStartDate');
+  const offEndDate=document.getElementById('offEndDate');
+  const offStartTime=document.getElementById('offStartTime');
+  const offEndTime=document.getElementById('offEndTime');
+  const offNote=document.getElementById('offNote');
+  const offList=document.getElementById('offList');
+  const offCancelBtn=document.getElementById('offCancelBtn');
+  const offDeleteAll=document.getElementById('offDeleteAll');
+
+  const findModal=document.getElementById('findModal');
+  const findForm=document.getElementById('findForm');
+  const fStartDate=document.getElementById('fStartDate');
+  const fDuration=document.getElementById('fDuration');
+  const fFrom=document.getElementById('fFrom');
+  const fTo=document.getElementById('fTo');
+  const fResult=document.getElementById('fResult');
+  const findCancelBtn=document.getElementById('findCancelBtn');
+  const fClearMark=document.getElementById('fClearMark');
+  const fNextBtn=document.getElementById('fNextBtn');
+
+  const wlList = document.getElementById('wlList');
+  const wlName = document.getElementById('wlName');
+  const wlDur  = document.getElementById('wlDur');
+  const wlAdd  = document.getElementById('wlAdd');
+  const wlClear= document.getElementById('wlClear');
+  const wlPane = document.getElementById('waitlistPane');
+
+  function pad(n){return String(n).padStart(2,'0')}
+  function minToTime(min){const hh=Math.floor(min/60), mm=min%60; return `${pad(hh)}:${pad(mm)}`}
+
+  function populateFindTimeSelects(){
+    const times=[];
+    for(let m=HOUR_START*60;m<=HOUR_END*60;m+=SLOT_MIN){
+      times.push(minToTime(m));
+    }
+    function fill(sel, def){
+      sel.innerHTML='';
+      times.forEach(t=>{
+        const o=document.createElement('option');
+        o.value=t;
+        o.textContent=t;
+        sel.appendChild(o);
+      });
+      sel.value=def;
+    }
+    fill(fFrom,'08:00');
+    fill(fTo,'19:00');
+  }
+
+  populateFindTimeSelects();
+
+  let currentMonday=startOfWeek(new Date());
+  let appts=loadAppts();
+  let timeoffs=loadTimeoffs();
+  let waitlist=loadWaitlist();
+
+  let editingId=null;
+  let expandedDayIndex=null;
+  let pickedId=null;
+
+  let suggestNode=null;
+
+  let historyStack=[];
+  function pushHistory(){ historyStack.push(JSON.stringify({appts,timeoffs,waitlist})); if(historyStack.length>50) historyStack.shift(); undoBtn.disabled=false; }
+  undoBtn.addEventListener('click',()=>{
+    if(!historyStack.length) return;
+    const s=JSON.parse(historyStack.pop());
+    appts=s.appts; timeoffs=s.timeoffs; waitlist=s.waitlist||[];
+    saveAppts(); saveTimeoffs(); saveWaitlist();
+    render();
+    undoBtn.disabled=historyStack.length===0;
+  });
+
+  let resizing=null, rAF=null;
+  let dragCopyMode=false;
+
+  function makeDayKeyLocal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
+  function parseDayKeyLocal(dayKey){ const [y,m,dd]=dayKey.split('-').map(Number); return new Date(y,(m||1)-1,(dd||1)); }
+  function startOfWeek(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setHours(0,0,0,0);x.setDate(x.getDate()-day);return x;}
+  function fmtDate(d){return d.toLocaleDateString('hu-HU')}
+  function toWeekKey(d){const dt=startOfWeek(d), y=dt.getFullYear(), jan4=new Date(y,0,4), start=startOfWeek(jan4); const diff=Math.round((dt-start)/86400000), week=Math.floor(diff/7)+1; return `${y}-W${pad(week)}`;}
+  function timesInDay(){const arr=[];for(let h=HOUR_START;h<HOUR_END;h++){for(let m=0;m<60;m+=SLOT_MIN){arr.push(`${pad(h)}:${pad(m)}`)}}return arr;}
+  function sameDate(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+  function toMin(t){const [h,m]=t.split(':').map(Number);return h*60+m}
+  function snapMin(min){return Math.max(HOUR_START*60, Math.min((HOUR_END*60)-SLOT_MIN, Math.round(min/SLOT_MIN)*SLOT_MIN))}
+  function offsetForTime(col, timeStr){
+    const slot = col.querySelector(`.slot[data-time="${timeStr}"]`);
+    return slot ? slot.offsetTop : ((toMin(timeStr)-(HOUR_START*60))/SLOT_MIN)*SLOT_H;
+  }
+  function toISODate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
+
+  function saveAppts(){localStorage.setItem('demo_appointments_v36', JSON.stringify(appts))}
+  function loadAppts(){let data=null; try{data=JSON.parse(localStorage.getItem('demo_appointments_v36')||'null')}catch(e){} if(!data){data=seed()} data.forEach(a=>{ if(!a.lanePref) a.lanePref={}; if(typeof a.isProsthesis!=='boolean') a.isProsthesis=false; }); return data}
+  function seed(){
+    const list=[]; const base=startOfWeek(new Date());
+    const mk=(name, di, t, dur, status='booked', notes='', prost=false)=>{
+      const d=new Date(base); d.setDate(d.getDate()+di);
+      list.push({id:'a_'+Math.random().toString(36).slice(2,9),
+        patientName:name, patientNameLower:name.toLowerCase(),
+        phone:'', startTime:t, duration:dur, notes, status,
+        dayIndex:di, dayKey:makeDayKeyLocal(d), weekKey:toWeekKey(d),
+        lanePref:{}, isProsthesis:prost});
+    };
+    mk('Kovács Anna',0,'09:00',30,'booked','Fogkő eltávolítás');
+    mk('Szabó Béla',0,'09:00',30,'booked','Kontroll', true);
+    mk('Papp Dóra',0,'09:00',45,'booked','Párhuzamos');
+    mk('Kiss Máté',2,'10:15',30,'no-show','Elmúlt héten nem jött');
+    mk('Nagy Éva',4,'12:00',60,'cancelled','Lemondta');
+    return list;
+  }
+
+  function saveTimeoffs(){localStorage.setItem('demo_timeoffs_v1', JSON.stringify(timeoffs||[]))}
+  function loadTimeoffs(){let t=null; try{t=JSON.parse(localStorage.getItem('demo_timeoffs_v1')||'null')}catch(e){} return Array.isArray(t)?t:[]}
+
+  function saveWaitlist(){localStorage.setItem('demo_waitlist_v1', JSON.stringify(waitlist||[]))}
+  function loadWaitlist(){let t=null; try{t=JSON.parse(localStorage.getItem('demo_waitlist_v1')||'null')}catch(e){} return Array.isArray(t)?t:[]}
+
+  function hasTimeoffConflict(dateObj, startMin, duration){
+    const dow=dateObj.getDay(); if(dow===0||dow===6) return false;
+    const s=startMin, e=startMin+duration;
+    for(const off of timeoffs){
+      if(!dateInRange(dateObj, off.startDate, off.endDate)) continue;
+      const os=toMin(off.startTime), oe=toMin(off.endTime);
+      if(Math.max(s, os) < Math.min(e, oe)) return true;
+    }
+    return false;
+  }
+  function dateInRange(dateObj, startISO, endISO){
+    const d = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()).getTime();
+    const s = new Date(startISO).setHours(0,0,0,0);
+    const e = new Date(endISO).setHours(0,0,0,0);
+    return d>=s && d<=e;
+  }
+
+  function computeLayoutForDay(dayIndex){
+    const wk=toWeekKey(currentMonday);
+    const items=appts
+      .filter(a=>a.weekKey===wk && a.dayIndex===dayIndex)
+      .map(a=>({...a,startMin:toMin(a.startTime),endMin:toMin(a.startTime)+a.duration}))
+      .sort((x,y)=> x.startMin - y.startMin || x.id.localeCompare(y.id));
+
+    const active=[];
+    items.forEach(it=>{
+      for(let i=active.length-1;i>=0;i--){ if(active[i].endMin<=it.startMin) active.splice(i,1); }
+      const used=new Set(active.map(a=>a.lane));
+      const pref = (it.lanePref && it.lanePref[it.dayKey] != null) ? it.lanePref[it.dayKey] : null;
+      const nextFree=()=>{ let l=0; while(used.has(l)) l++; return l; };
+      let lane = (pref!=null && !used.has(pref)) ? pref : nextFree();
+      it.lane=lane;
+      active.push(it);
+      if(!it.lanePref) it.lanePref={};
+      it.lanePref[it.dayKey]=lane;
+    });
+
+    items.forEach(it=>{
+      const overlapping = items.filter(o => Math.max(it.startMin,o.startMin) < Math.min(it.endMin,o.endMin));
+      it.laneCount = Math.max(1, ...overlapping.map(o=>o.lane+1));
+    });
+    saveAppts();
+    return items;
+  }
+
+  function computeMaxLanesPerDay(){ const arr=[]; for(let di=0;di<5;di++){ const lay=computeLayoutForDay(di); const m=lay.reduce((x,it)=>Math.max(x,it.laneCount||1),1); arr.push(m)} return arr }
+
+  function render(){
+    const keepY = window.scrollY || document.documentElement.scrollTop;
+    const keepX = gridEl.scrollLeft;
+
+    gridEl.innerHTML='';
+    clearSuggest();
+
+    const emptyHead=document.createElement('div'); emptyHead.className='colhead'; emptyHead.textContent='Idő'; gridEl.appendChild(emptyHead);
+    for(let i=0;i<5;i++){
+      const d=new Date(currentMonday); d.setDate(d.getDate()+i);
+      const h=document.createElement('div'); h.className='colhead';
+      if(dayHasTimeoff(d)) h.classList.add('off-day');
+      h.innerHTML=`${['Hétfő','Kedd','Szerda','Csütörtök','Péntek'][i]} <span class="date">${fmtDate(d)}</span>`;
+      h.addEventListener('click',()=>{
+        const newExpanded = (expandedDayIndex===i ? null : i);
+        const prevY = window.scrollY || document.documentElement.scrollTop;
+        expandedDayIndex = newExpanded;
+        render();
+        setTimeout(()=>{
+          const dayCol=document.querySelector('.daycol[data-day-index="'+i+'"]');
+          if(dayCol){
+            const gridRect = gridEl.getBoundingClientRect();
+            const colRect = dayCol.getBoundingClientRect();
+            if(colRect.left < gridRect.left || colRect.right > gridRect.right){
+              gridEl.scrollLeft += colRect.left - gridRect.left - 40;
+            }
+          }
+          window.scrollTo({top:prevY, left:window.scrollX});
+        },0);
+      });
+      gridEl.appendChild(h);
+    }
+    const hEl = gridEl.querySelector('.colhead');
+    if(hEl){
+      const h = hEl.getBoundingClientRect().height || 48;
+      document.documentElement.style.setProperty('--colHeadH', h + 'px');
+    }
+
+    const dayMaxLanes=computeMaxLanesPerDay();
+    const cols = [];
+    cols.push(`120px`);
+
+    const parentW = gridEl.parentElement
+      ? gridEl.parentElement.getBoundingClientRect().width
+      : (gridEl.clientWidth || window.innerWidth);
+
+    if (expandedDayIndex == null) {
+      const collapsedBase = parentW
+        ? Math.max(160, Math.floor((parentW - 120) / 5))
+        : 220;
+      for (let i = 0; i < 5; i++) cols.push(`${collapsedBase}px`);
+      gridEl.style.overflowX = 'hidden';
+    } else {
+      const lanesForExp = Math.max(1, dayMaxLanes[expandedDayIndex] || 1);
+      const EXPANDED_MIN = 520;
+      const naturalExpanded = Math.max(EXPANDED_MIN, lanesForExp * (220 + 8) + 8);
+
+      const MIN_COLLAPSED = 80;
+      const MAX_COLLAPSED = 160;
+
+      let expandedW = naturalExpanded;
+      let collapsedW;
+
+      if (parentW) {
+        collapsedW = Math.floor((parentW - 120 - expandedW) / 4);
+        if (collapsedW < MIN_COLLAPSED) {
+          collapsedW = MIN_COLLAPSED;
+          expandedW = parentW - 120 - 4 * collapsedW;
+          if (expandedW < 220) expandedW = 220;
+        } else if (collapsedW > MAX_COLLAPSED) {
+          collapsedW = MAX_COLLAPSED;
+          expandedW = parentW - 120 - 4 * collapsedW;
+        }
+      } else {
+        collapsedW = 100;
+        expandedW = naturalExpanded;
+      }
+
+      for (let i = 0; i < 5; i++) {
+        if (i === expandedDayIndex) cols.push(`${expandedW}px`);
+        else cols.push(`${collapsedW}px`);
+      }
+      gridEl.style.overflowX = 'hidden';
+    }
+
+    gridEl.style.gridTemplateColumns = cols.join(' ');
+
+    const times=timesInDay();
+    const timeCol=document.createElement('div'); timeCol.className='timecol';
+    times.forEach(t=>{
+      const tc=document.createElement('div'); tc.className='timecell';
+      const mm = Number(t.split(':')[1]);
+      if(mm===0) tc.classList.add('whole'); else if(mm===30) tc.classList.add('half');
+      tc.textContent=t; timeCol.appendChild(tc);
+    });
+    gridEl.appendChild(timeCol);
+
+    const now=new Date(); const isThisWeek=toWeekKey(now)===toWeekKey(currentMonday);
+
+    for(let i=0;i<5;i++){
+      const dayCol=document.createElement('div'); dayCol.className='daycol'; dayCol.dataset.dayIndex=i;
+
+      dayCol.addEventListener('dragover',(e)=> e.preventDefault());
+      dayCol.addEventListener('drop',(e)=>{
+        e.preventDefault();
+        const slotEl = e.target.closest('.slot');
+        let targetTime=null;
+        if(slotEl) targetTime = slotEl.dataset.time;
+        else{
+          const rect=dayCol.getBoundingClientRect();
+          const padTop=parseFloat(getComputedStyle(dayCol).paddingTop)||0;
+          const relY = Math.max(0, Math.min(rect.height, e.clientY - rect.top - padTop));
+          const idx = Math.round(relY / (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--slotH'))||36));
+          targetTime = minToTime(snapMin(HOUR_START*60 + idx*SLOT_MIN));
+        }
+        const nd=new Date(currentMonday); nd.setDate(nd.getDate()+i);
+
+        const dt = e.dataTransfer.getData('text/plain');
+        if(!dt) return;
+
+        if(dt.startsWith('wl:')){
+          const wid = dt.slice(3);
+          const node = waitlist.find(w=>w.id===wid);
+          if(!node) return;
+          const dur = Number(node.duration)||30;
+          if(hasTimeoffConflict(nd, toMin(targetTime), dur)){ showToast(); return; }
+
+          pushHistory();
+          appts.push(cleanCopyFromWait(node, i, nd, targetTime));
+          waitlist = waitlist.filter(w=>w.id!==wid);
+          saveWaitlist();
+        }else{
+          const moving=appts.find(x=>x.id===dt);
+          if(!moving) return;
+          const dur = moving.duration;
+          if(hasTimeoffConflict(nd, toMin(targetTime), dur)){ showToast(); return; }
+
+          pushHistory();
+          if(dragCopyMode){
+            appts.push(cleanCopyFromAppt(moving, i, nd, targetTime));
+          }else{
+            moving.dayIndex = i;
+            moving.dayKey = makeDayKeyLocal(nd);
+            moving.weekKey = toWeekKey(nd);
+            moving.startTime = targetTime;
+            if(!moving.lanePref) moving.lanePref={};
+            const lane = nextFreeLaneFor(i, moving.dayKey, moving.startTime, moving.duration, moving.id);
+            moving.lanePref[moving.dayKey] = lane;
+          }
+        }
+        saveAppts(); render();
+      });
+
+      const dayDate=new Date(currentMonday); dayDate.setDate(dayDate.getDate()+i);
+
+      const times2=timesInDay();
+      times2.forEach((t)=>{
+        const slot=document.createElement('div'); slot.className='slot'; slot.dataset.time=t; slot.dataset.dayIndex=i;
+        if(isThisWeek){const d=new Date(currentMonday); d.setDate(d.getDate()+i); if(sameDate(d,now)) slot.classList.add('today');}
+        slot.addEventListener('click',()=>{
+          if(!pickedId) return;
+          const appt=appts.find(x=>x.id===pickedId);
+          if(!appt) return;
+          const nd=new Date(currentMonday); nd.setDate(nd.getDate()+i);
+          if(hasTimeoffConflict(nd, toMin(t), appt.duration)){ showToast(); return; }
+          pushHistory();
+          appts.push(cleanCopyFromAppt(appt, i, nd, t));
+          saveAppts(); clearPicked(); render();
+        });
+        slot.addEventListener('dblclick',()=> openNewAt(i,t));
+        dayCol.appendChild(slot);
+      });
+
+      const offsToday = timeoffs.filter(off=> dateInRange(dayDate, off.startDate, off.endDate));
+      if(offsToday.length){
+        offsToday.forEach(off=>{
+          const top = offsetForTime(dayCol, off.startTime);
+          const height = Math.max(SLOT_H, Math.round((toMin(off.endTime)-toMin(off.startTime))/SLOT_MIN)*SLOT_H)-2;
+          const ob=document.createElement('div');
+          ob.className='offblock';
+          ob.style.top=(top+1)+'px';
+          ob.style.height=height+'px';
+          ob.innerHTML=`<div class="label">Szabadság${off.note? ' – '+escapeHtml(off.note):''}</div>`;
+          dayCol.appendChild(ob);
+        });
+      }
+
+      gridEl.appendChild(dayCol);
+    }
+
+    const weekEnd=new Date(currentMonday); weekEnd.setDate(weekEnd.getDate()+4);
+    weekLabel.textContent=`${fmtDate(currentMonday)} – ${fmtDate(weekEnd)}  •  ${toWeekKey(currentMonday)}`;
+
+    renderAppointments();
+    fillDaySelector();
+    updateMoveBar();
+    refreshPatientDatalist();
+    refreshOffList();
+    renderWaitlist();
+
+    requestAnimationFrame(()=>{
+      gridEl.scrollLeft = keepX;
+      window.scrollTo({top: keepY, left: window.scrollX});
+    });
+  }
+
+  function dayHasTimeoff(dateObj){
+    const dow=dateObj.getDay(); if(dow===0||dow===6) return false;
+    return timeoffs.some(off=> dateInRange(dateObj, off.startDate, off.endDate));
+  }
+
+  function renderAppointments(){
+    document.querySelectorAll('.appt').forEach(n=>n.remove());
+    for(let di=0; di<5; di++){
+      const col=document.querySelector(`.daycol[data-day-index="${di}"]`); if(!col) continue;
+      const layout=computeLayoutForDay(di);
+      const isExpanded = expandedDayIndex===di;
+      const G = 8;
+
+      layout.forEach(it=>{
+        const node=document.createElement('div'); node.className='appt';
+        if(!isExpanded) node.classList.add('compact');
+
+        const statuses = parseStatuses(it.status);
+        if(statuses.has('attended')) node.classList.add('attended');
+        if(statuses.has('no-show')) node.classList.add('no-show');
+        if(statuses.has('lemondta')) node.classList.add('lemondta');
+        if(statuses.has('cancelled')) node.classList.add('cancelled');
+        if(statuses.has('plus1')) node.classList.add('plus1');
+        if(it.isProsthesis) node.classList.add('prosthesis');
+        if(pickedId===it.id) node.classList.add('picked');
+
+        const top = offsetForTime(col, it.startTime);
+        const height=Math.max(SLOT_H, Math.round(it.duration/SLOT_MIN)*SLOT_H)-2;
+        node.style.top=(top+1)+'px'; node.style.height=height+'px';
+
+        const widthPct=100/(it.laneCount||1), leftPct=widthPct*it.lane;
+        node.style.width=`calc(${widthPct}% - ${G}px)`;
+        node.style.left =`calc(${leftPct}% + ${G/2}px)`;
+
+        node.draggable=true; node.dataset.id=it.id;
+
+        node.addEventListener('dragstart',(e)=>{
+          dragCopyMode = !!e.shiftKey;
+          const ghost=node.cloneNode(true);
+          ghost.style.position='absolute'; ghost.style.top='-9999px'; ghost.style.left='-9999px'; ghost.style.width=node.offsetWidth+'px';
+          document.body.appendChild(ghost);
+          e.dataTransfer.setDragImage(ghost, 10, 10);
+          setTimeout(()=> document.body.removeChild(ghost), 0);
+          e.dataTransfer.setData('text/plain', it.id);
+        });
+        node.addEventListener('dragend',()=>{ dragCopyMode=false; });
+
+        const noteHtml = it.notes ? `<div class="note">${escapeHtml(it.notes)}</div>` : '';
+
+        node.innerHTML = `
+          <div class="name">${escapeHtml(it.startTime)} <span class="hit" data-open-profile="${it.patientName}">${escapeHtml(it.patientName)}</span></div>
+          ${noteHtml}
+          <div class="actions-top">
+            <span class="pill" data-act="attended" title="Megjelent">✓</span>
+            <span class="pill" data-act="no-show"  title="Nem jelent meg">×</span>
+            <span class="pill" data-act="lemondta" title="Lemondta">L</span>
+            <span class="pill" data-act="cancelled" title="Kihúzás">~</span>
+          </div>
+          <div class="actions-br">
+            <span class="pill" data-act="edit"     title="Szerkesztés">✎</span>
+            <span class="pill" data-act="plus1"    title="+1">+1</span>
+          </div>
+          <div class="actions-bl">
+            <span class="pill" data-act="delete"   title="Törlés">🗑</span>
+          </div>
+          <div class="handle top"></div>
+          <div class="handle bottom"></div>
+        `;
+
+        node.addEventListener('click',(e)=>{
+          if(e.target.classList.contains('pill') || e.target.classList.contains('handle')) return;
+          if(e.target.classList.contains('hit')){
+            e.stopPropagation();
+            openPatientProfile(e.target.dataset.openProfile);
+            return;
+          }
+          const prev=document.querySelector(`.appt.picked`); if(prev && prev!==node) prev.classList.remove('picked');
+          if(pickedId===it.id){ pickedId=null; node.classList.remove('picked'); }
+          else { pickedId=it.id; node.classList.add('picked'); }
+          updateMoveBar();
+        });
+
+        node.addEventListener('dblclick',(e)=>{
+          e.stopPropagation();
+          openEdit(it.id);
+        });
+
+        node.addEventListener('dragover',(e)=>{ e.preventDefault(); e.stopPropagation(); });
+        node.addEventListener('drop',(e)=>{
+          e.preventDefault(); e.stopPropagation();
+          const movingId=e.dataTransfer.getData('text/plain'); if(!movingId) return;
+          const nd=new Date(currentMonday); nd.setDate(nd.getDate()+di);
+
+          if(movingId.startsWith('wl:')){
+            const wid = movingId.slice(3);
+            const item = waitlist.find(w=>w.id===wid);
+            if(!item) return;
+            const dur = Number(item.duration)||30;
+            if(hasTimeoffConflict(nd, toMin(it.startTime), dur)){ showToast(); return; }
+
+            pushHistory();
+            appts.push(cleanCopyFromWait(item, di, nd, it.startTime));
+            waitlist = waitlist.filter(w=>w.id!==wid);
+            saveWaitlist();
+          } else {
+            const moving=appts.find(x=>x.id===movingId); if(!moving) return;
+            const dur = moving.duration;
+            if(hasTimeoffConflict(nd, toMin(it.startTime), dur)){ showToast(); return; }
+
+            pushHistory();
+            if(dragCopyMode){
+              appts.push(cleanCopyFromAppt(moving, di, nd, it.startTime));
+            }else{
+              moving.dayIndex = di;
+              moving.dayKey = makeDayKeyLocal(nd);
+              moving.weekKey = toWeekKey(nd);
+              moving.startTime = it.startTime;
+              if(!moving.lanePref) moving.lanePref={};
+              const lane = nextFreeLaneFor(di, moving.dayKey, moving.startTime, moving.duration, moving.id);
+              moving.lanePref[moving.dayKey] = lane;
+            }
+          }
+          saveAppts(); render();
+        });
+
+        node.querySelectorAll('.pill').forEach(p=>{
+          p.addEventListener('click',(ev)=>{
+            ev.stopPropagation();
+            const act=p.dataset.act;
+            if(act==='edit'){ openEdit(it.id); return; }
+            if(act==='delete'){
+              pushHistory();
+              appts = appts.filter(x=>x.id!==it.id);
+              saveAppts();
+              render();
+              return;
+            }
+            pushHistory();
+            setStatus(it.id, act);
+          });
+        });
+
+        node.querySelector('.handle.top').addEventListener('mousedown',(e)=> beginResize(it.id, di, 'top', e, node, col));
+        node.querySelector('.handle.bottom').addEventListener('mousedown',(e)=> beginResize(it.id, di, 'bottom', e, node, col));
+
+        col.appendChild(node);
+      });
+    }
+  }
+
+  function nextFreeLaneFor(di, dayKey, startTime, duration, excludeId){
+    const layout = computeLayoutForDay(di);
+    const s = toMin(startTime), e = s + duration;
+    const used = new Set();
+    layout.forEach(it=>{
+      if(it.id===excludeId) return;
+      const overlap = Math.max(s, toMin(it.startTime)) < Math.min(e, toMin(it.startTime)+it.duration);
+      if(overlap) used.add(it.lane);
+    });
+    let l=0; while(used.has(l)) l++;
+    return l;
+  }
+
+  function cleanCopyFromAppt(src, di, nd, targetTime){
+    const lane = nextFreeLaneFor(di, makeDayKeyLocal(nd), targetTime, src.duration, null);
+    return {
+      id:'a_'+Math.random().toString(36).slice(2,9),
+      patientName:src.patientName,
+      patientNameLower:src.patientNameLower,
+      phone:'',
+      startTime:targetTime,
+      duration:src.duration,
+      notes:'',
+      status:'booked',
+      isProsthesis:false,
+      dayIndex:di,
+      dayKey:makeDayKeyLocal(nd),
+      weekKey:toWeekKey(nd),
+      lanePref:{ [makeDayKeyLocal(nd)]: lane }
+    };
+  }
+  function cleanCopyFromWait(w, di, nd, targetTime){
+    const dur = Number(w.duration)||30;
+    const lane = nextFreeLaneFor(di, makeDayKeyLocal(nd), targetTime, dur, null);
+    return {
+      id:'a_'+Math.random().toString(36).slice(2,9),
+      patientName:w.name,
+      patientNameLower:w.name.toLowerCase(),
+      phone:'',
+      startTime:targetTime,
+      duration:dur,
+      notes:'',
+      status:'booked',
+      isProsthesis:false,
+      dayIndex:di,
+      dayKey:makeDayKeyLocal(nd),
+      weekKey:toWeekKey(nd),
+      lanePref:{ [makeDayKeyLocal(nd)]: lane }
+    };
+  }
+
+  function parseStatuses(st){
+    const norm=(st||'').replace(/,/g,' ').trim();
+    if(!norm) return new Set();
+    return new Set(norm.split(/\s+/));
+  }
+  function serializeStatuses(set){ return set.size ? Array.from(set).join(' ') : 'booked'; }
+
+  function setStatus(id,action){
+    const a=appts.find(x=>x.id===id); if(!a) return;
+    const S=parseStatuses(a.status);
+
+    if(action==='attended'){
+      if(S.has('attended')) {
+        S.delete('attended');
+      }
+      else {
+        S.add('attended');
+        S.delete('no-show');
+        S.delete('lemondta');
+        S.delete('cancelled'); // megjelent és kihúzva ne legyen együtt
+      }
+      S.delete('plus1');
+    } else if(action==='no-show'){
+      if(S.has('no-show')) { S.delete('no-show'); }
+      else { S.add('no-show'); S.delete('attended'); S.delete('lemondta'); }
+      S.delete('plus1');
+    } else if(action==='lemondta'){
+      if(S.has('lemondta')) { S.delete('lemondta'); }
+      else { S.add('lemondta'); S.delete('attended'); S.delete('no-show'); }
+      S.delete('plus1');
+    } else if(action==='cancelled'){
+      if(S.has('cancelled')) {
+        S.delete('cancelled');
+      } else {
+        S.add('cancelled');
+        S.delete('attended'); // kihúzva bekapcsolásakor vegye le a megjelent-et
+      }
+    } else if(action==='plus1'){
+      if(S.has('plus1')) S.delete('plus1'); else S.add('plus1');
+    }
+
+    a.status=serializeStatuses(S);
+    saveAppts(); render();
+  }
+
+  function clearPicked(){ const prev=document.querySelector(`.appt.picked`); if(prev) prev.classList.remove('picked'); pickedId=null; updateMoveBar(); }
+  function updateMoveBar(){ moveBar.textContent = 'Másolás mód: kattints a cél idősávra (Esc: kilépés)'; moveBar.classList.toggle('show', !!pickedId); }
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ clearPicked(); clearSuggest(); } });
+
+  function openNewAt(dayIndex,time){
+    editingId=null; modalTitle.textContent='Új időpont';
+    mName.value=''; mPhone.value=''; mDuration.value='30'; mNotes.value=''; mProsthesis.checked=false;
+    mDay.value=String(dayIndex); mStartTime.value=time;
+    const date=new Date(currentMonday); date.setDate(date.getDate()+Number(mDay.value)); mDate.value=fmtDate(date);
+    syncModalStatus(new Set());
+    modal.showModal();
+  }
+  function openEdit(id){
+    const a=appts.find(x=>x.id===id); if(!a) return;
+    editingId=id; modalTitle.textContent='Időpont szerkesztése';
+    mName.value=a.patientName; mPhone.value=a.phone||''; mDuration.value=String(a.duration); mNotes.value=a.notes||''; mProsthesis.checked=!!a.isProsthesis;
+    mDay.value=String(a.dayIndex); mStartTime.value=a.startTime;
+    const date=parseDayKeyLocal(a.dayKey); mDate.value=fmtDate(date);
+    syncModalStatus(parseStatuses(a.status));
+    modal.showModal();
+  }
+
+  function previewChips(S){
+    const chips=[];
+    if(S.has('attended')) chips.push('<span class="chip attended">Megjelent</span>');
+    if(S.has('no-show')) chips.push('<span class="chip no-show">Nem jött</span>');
+    if(S.has('lemondta')) chips.push('<span class="chip lem">Lemondta</span>');
+    if(S.has('cancelled')) chips.push('<span class="chip cancelled">Kihúzva</span>');
+    if(S.has('plus1')) chips.push('<span class="chip plus1">+1</span>');
+    statusPreview.innerHTML = chips.length ? `<div>${chips.join(' ')}</div>` : `<div class="chip">Nincs státusz</div>`;
+  }
+  function syncModalStatus(S){
+    [...statusBar.querySelectorAll('.tbtn')].forEach(btn=>{
+      const act=btn.dataset.act;
+      btn.classList.toggle('active', S.has(act));
+      btn.onclick=()=>{
+        if(act==='attended'){
+          if(S.has('attended')) {
+            S.delete('attended');
+          } else {
+            S.add('attended');
+            S.delete('no-show');
+            S.delete('lemondta');
+            S.delete('cancelled'); // modalban is: megjelent és kihúzva ne legyen együtt
+          }
+          S.delete('plus1');
+        } else if(act==='no-show'){
+          if(S.has('no-show')) S.delete('no-show'); else { S.add('no-show'); S.delete('attended'); S.delete('lemondta'); }
+          S.delete('plus1');
+        } else if(act==='lemondta'){
+          if(S.has('lemondta')) S.delete('lemondta'); else { S.add('lemondta'); S.delete('attended'); S.delete('no-show'); }
+          S.delete('plus1');
+        } else if(act==='cancelled'){
+          if(S.has('cancelled')) {
+            S.delete('cancelled');
+          } else {
+            S.add('cancelled');
+            S.delete('attended'); // kihúzva bekapcsolásakor vegye le a megjelent-et
+          }
+        } else if(act==='plus1'){
+          if(S.has('plus1')) S.delete('plus1'); else S.add('plus1');
+        }
+        statusBar.dataset.current = JSON.stringify(Array.from(S));
+        previewChips(S);
+        [...statusBar.querySelectorAll('.tbtn')].forEach(b=>b.classList.toggle('active', S.has(b.dataset.act)));
+      };
+    });
+    statusBar.dataset.current = JSON.stringify(Array.from(S));
+    previewChips(S);
+  }
+
+  cancelBtn.addEventListener('click',()=> modal.close());
+
+  form.addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const dayIndex=Number(mDay.value); const date=new Date(currentMonday); date.setDate(date.getDate()+dayIndex);
+    const payload={
+      patientName:mName.value.trim(),
+      patientNameLower:mName.value.trim().toLowerCase(),
+      phone:mPhone.value.trim(),
+      startTime:minToTime(snapMin(toMin(mStartTime.value))),
+      duration:Number(mDuration.value),
+      notes:mNotes.value.trim(),
+      isProsthesis: !!mProsthesis.checked
+    };
+    if(!payload.patientName) return;
+    if(hasTimeoffConflict(date, toMin(payload.startTime), payload.duration)){ showToast(); return; }
+    const Snew = new Set(JSON.parse(statusBar.dataset.current||'[]'));
+    pushHistory();
+    if(editingId){
+      const a=appts.find(x=>x.id===editingId);
+      if(!a) return;
+      a.patientName=payload.patientName; a.patientNameLower=payload.patientNameLower; a.phone=payload.phone;
+      a.startTime=payload.startTime; a.duration=payload.duration; a.notes=payload.notes;
+      a.dayIndex=dayIndex; a.dayKey=makeDayKeyLocal(date); a.weekKey=toWeekKey(date);
+      a.status=serializeStatuses(Snew);
+      a.isProsthesis=payload.isProsthesis;
+    } else {
+      appts.push({id:'a_'+Math.random().toString(36).slice(2,9),...payload,status:serializeStatuses(Snew),dayIndex,dayKey:makeDayKeyLocal(date),weekKey:toWeekKey(date),lanePref:{}});
+    }
+    saveAppts();
+    modal.close();
+    render();
+  });
+
+  deleteBtn.addEventListener('click',()=>{
+    if(!editingId) return modal.close();
+    pushHistory();
+    appts = appts.filter(a=>a.id!==editingId);
+    saveAppts();
+    modal.close();
+    render();
+  });
+  newBtn.addEventListener('click',()=> openNewAt(0,'08:00'));
+
+  function tsOfAppt(a){ const d=parseDayKeyLocal(a.dayKey); return d.getTime()+toMin(a.startTime)*60000; }
+
+  searchInput.addEventListener('input',()=>{
+    const q=searchInput.value.trim().toLowerCase();
+    if(!q){ searchResults.style.display='none'; searchResults.innerHTML=''; return;}
+    const matchedNames = Array.from(new Set(
+      appts
+        .filter(a=>a.patientNameLower.includes(q))
+        .map(a=>a.patientName)
+    )).sort((a,b)=>a.localeCompare(b,'hu')).slice(0,10);
+    if(!matchedNames.length){ searchResults.style.display='none'; searchResults.innerHTML=''; return;}
+    searchResults.innerHTML = matchedNames.map(n=>`<div data-name="${escapeHtml(n)}">${escapeHtml(n)}</div>`).join('');
+    searchResults.style.display='block';
+    [...searchResults.children].forEach(div=>{
+      div.addEventListener('click',()=>{
+        const name = div.dataset.name;
+        openPatientProfile(name);
+        searchResults.style.display='none'; searchResults.innerHTML='';
+      });
+    });
+  });
+  document.addEventListener('click',(e)=>{ if(!searchResults.contains(e.target) && e.target!==searchInput){ searchResults.style.display='none'; searchResults.innerHTML=''; }});
+
+  prevWeekBtn.addEventListener('click',()=>{ currentMonday.setDate(currentMonday.getDate()-7); render(); });
+  nextWeekBtn.addEventListener('click',()=>{ currentMonday.setDate(currentMonday.getDate()+7); render(); });
+  thisWeekBtn.addEventListener('click',()=>{ currentMonday=startOfWeek(new Date()); render(); });
+
+  function beginResize(id, dayIndex, mode, e, node, col){
+    e.preventDefault();
+    pushHistory();
+    const appt=appts.find(x=>x.id===id); if(!appt) return;
+    const rect=col.getBoundingClientRect();
+    const startMin=toMin(appt.startTime);
+    const startDur=appt.duration;
+    resizing={id,dayIndex,mode,rect,startMin,startDur,node,col};
+    document.addEventListener('mousemove', onResizeMove);
+    document.addEventListener('mouseup', endResize);
+  }
+  function onResizeMove(e){
+    if(!resizing) return;
+    const a=appts.find(x=>x.id===resizing.id); if(!a) return;
+    let relY = Math.max(0, Math.min(resizing.rect.height, e.clientY - resizing.rect.top - (parseFloat(getComputedStyle(resizing.node.parentElement).paddingTop)||0)));
+    const snapIdx = Math.round(relY / (SLOT_H));
+    const snapAbs = HOUR_START*60 + snapIdx*SLOT_MIN;
+
+    const startMin = resizing.startMin;
+    const endMin0 = startMin + resizing.startDur;
+
+    if(resizing.mode==='bottom'){
+      const newEnd = Math.max(startMin + SLOT_MIN, Math.min(HOUR_END*60, snapAbs));
+      a.duration = newEnd - startMin;
+    } else {
+      const newStart = Math.min(endMin0 - SLOT_MIN, Math.max(HOUR_START*60, snapAbs));
+      a.startTime = minToTime(newStart);
+      a.duration  = endMin0 - newStart;
+    }
+    if(!rAF){
+      rAF = requestAnimationFrame(()=>{
+        rAF=null;
+        const top = offsetForTime(resizing.col, a.startTime);
+        const height=Math.max(SLOT_H, Math.round(a.duration/SLOT_MIN)*SLOT_H)-2;
+        resizing.node.style.top=(top+1)+'px';
+        resizing.node.style.height=height+'px';
+        resizing.node.querySelector('.name').innerHTML = `${escapeHtml(a.startTime)} <span class="hit" data-open-profile="${a.patientName}">${escapeHtml(a.patientName)}</span>`;
+      });
+    }
+  }
+  function endResize(){
+    if(!resizing) return;
+    const a=appts.find(x=>x.id===resizing.id);
+    const nd=new Date(currentMonday); nd.setDate(nd.getDate()+resizing.dayIndex);
+    if(hasTimeoffConflict(nd, toMin(a.startTime), a.duration)){
+      showToast();
+      const last = JSON.parse(historyStack.pop()||'null');
+      if(last){ appts=last.appts; timeoffs=last.timeoffs; waitlist=last.waitlist||[]; saveAppts(); saveTimeoffs(); saveWaitlist(); }
+    }else{
+      saveAppts();
+    }
+    document.removeEventListener('mousemove', onResizeMove);
+    document.removeEventListener('mouseup', endResize);
+    resizing=null;
+    render();
+    undoBtn.disabled=historyStack.length===0;
+  }
+
+  function fillDaySelector(){
+    const days=[]; for(let i=0;i<5;i++){ const d=new Date(currentMonday); d.setDate(d.getDate()+i); days.push(d); }
+    mDay.innerHTML=''; days.forEach((d,idx)=>{const o=document.createElement('option'); o.value=idx; o.textContent=`${['H','K','Sze','Cs','P'][idx]} – ${fmtDate(d)}`; mDay.appendChild(o);});
+    if(!mDuration.value) mDuration.value='30';
+  }
+
+  function refreshPatientDatalist(){
+    const names = Array.from(new Set(appts.map(a=>a.patientName).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'hu'));
+    patientListEl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}">`).join('');
+  }
+
+  function openPatientProfile(name){
+    const nameLower=name.toLowerCase();
+    const list = appts.filter(a=>a.patientNameLower===nameLower).sort((a,b)=>tsOfAppt(b)-tsOfAppt(a));
+    const totals = {count:list.length, noshow:0, cancelled:0, attended:0, plus1:0, prosthesis:0, lemondta:0};
+    list.forEach(a=>{
+      const S=parseStatuses(a.status);
+      if(S.has('no-show')) totals.noshow++;
+      if(S.has('cancelled')) totals.cancelled++;
+      if(S.has('attended')) totals.attended++;
+      if(S.has('plus1')) totals.plus1++;
+      if(S.has('lemondta')) totals.lemondta++;
+      if(a.isProsthesis) totals.prosthesis++;
+    });
+
+    const chips = [
+      `<span class="chip">Összes: ${totals.count}</span>`,
+      `<span class="chip attended">Megjelent: ${totals.attended}</span>`,
+      `<span class="chip no-show">Nem jött: ${totals.noshow}</span>`,
+      `<span class="chip lem">Lemondta: ${totals.lemondta}</span>`,
+      `<span class="chip cancelled">Kihúzva: ${totals.cancelled}</span>`,
+      `<span class="chip plus1">+1: ${totals.plus1}</span>`,
+      `<span class="chip prosthesis">Fogpótlás: ${totals.prosthesis}</span>`
+    ];
+
+    const rows = list.slice(0,200).map(a=>{
+      const d=parseDayKeyLocal(a.dayKey);
+      const S=parseStatuses(a.status);
+      const cls =
+        S.has('attended') ? 'attended' :
+        S.has('no-show') ? 'no-show' :
+        S.has('lemondta') ? 'lemondta' :
+        S.has('cancelled') ? 'cancelled' : (S.has('plus1') ? 'plus1' : (a.isProsthesis ? 'prosthesis' : ''));
+      const tags = [];
+      if(S.has('attended')) tags.push('<span class="chip attended">Megjelent</span>');
+      if(S.has('no-show')) tags.push('<span class="chip no-show">Nem jött</span>');
+      if(S.has('lemondta')) tags.push('<span class="chip lem">Lemondta</span>');
+      if(S.has('cancelled')) tags.push('<span class="chip cancelled">Kihúzva</span>');
+      if(S.has('plus1')) tags.push('<span class="chip plus1">+1</span>');
+      if(a.isProsthesis) tags.push('<span class="chip prosthesis">Fogpótlás</span>');
+      return `
+        <div class="row ${cls}" data-appt-id="${a.id}">
+          <div class="title">${fmtDate(d)} • ${['H','K','Sze','Cs','P'][a.dayIndex]} • ${escapeHtml(a.startTime || '')}</div>
+          ${tags.length? `<div style="margin:.25rem 0">${tags.join(' ')}</div>`:''}
+          ${a.notes? `<div style="opacity:.85">${escapeHtml(a.notes)}</div>`:''}
+        </div>
+      `;
+    }).join('');
+
+    sideInner.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <div style="font-weight:800;font-size:1.05rem">${escapeHtml(name)}</div>
+        <button id="closeSide">✕</button>
+      </div>
+      <div style="margin:.25rem 0 .5rem">${chips.join(' ')}</div>
+      <div style="border-top:1px solid var(--line);margin:.5rem 0"></div>
+      ${rows || '<div style="font-size:.85rem;color:var(--muted)">Nincs rögzített időpont.</div>'}
+    `;
+    side.classList.add('open');
+    document.getElementById('closeSide').onclick=()=> side.classList.remove('open');
+
+    sideInner.querySelectorAll('.row[data-appt-id]').forEach(row=>{
+      row.addEventListener('click',()=>{
+        const id=row.dataset.apptId;
+        const appt=appts.find(x=>x.id===id);
+        if(!appt) return;
+        const date=parseDayKeyLocal(appt.dayKey);
+        currentMonday = startOfWeek(date);
+        render();
+        setTimeout(()=>{
+          const el=document.querySelector(`.appt[data-id="${id}"]`);
+          if(el){
+            el.scrollIntoView({block:'center', inline:'center'});
+            const prev=document.querySelector('.appt.picked');
+            if(prev && prev!==el) prev.classList.remove('picked');
+            pickedId=id;
+            el.classList.add('picked');
+            updateMoveBar();
+            setTimeout(()=>{ if(el.classList.contains('picked') && pickedId===id){ el.classList.remove('picked'); pickedId=null; updateMoveBar(); }}, 1500);
+          }
+        },0);
+      });
+    });
+  }
+
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+
+  offBtn.addEventListener('click',()=>{
+    const s=new Date(currentMonday);
+    const e=new Date(currentMonday); e.setDate(e.getDate()+4);
+    offStartDate.value = toISODate(s);
+    offEndDate.value = toISODate(e);
+    offStartTime.value = '08:00';
+    offEndTime.value = '19:00';
+    offNote.value = '';
+    refreshOffList();
+    offModal.showModal();
+  });
+  offCancelBtn.addEventListener('click',()=> offModal.close());
+  offDeleteAll.addEventListener('click',()=>{
+    if(!timeoffs.length) return;
+    if(!confirm('Biztosan törlöd az összes szabadság bejegyzést?')) return;
+    pushHistory();
+    timeoffs=[];
+    saveTimeoffs();
+    refreshOffList();
+    render();
+  });
+  offForm.addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const s=offStartDate.value, eDate=offEndDate.value, st=offStartTime.value, et=offEndTime.value, note=offNote.value.trim();
+    if(!s||!eDate||!st||!et) return;
+    const sMin=toMin(st), eMin=toMin(et);
+    if(eMin<=sMin){ alert('A napi zárásnak későbbinek kell lennie, mint a kezdésnek.'); return; }
+    pushHistory();
+    timeoffs.push({id:'off_'+Math.random().toString(36).slice(2,9), startDate:s, endDate:eDate, startTime:st, endTime:et, note});
+    saveTimeoffs();
+    refreshOffList();
+    render();
+    offModal.close();
+  });
+
+  function refreshOffList(){
+    if(!offList) return;
+    if(!timeoffs.length){ offList.innerHTML='<div style="padding:.4rem .5rem;font-size:.85rem;color:var(--muted)">Nincs rögzített szabadság.</div>'; return;}
+    offList.innerHTML=timeoffs.map(off=>{
+      return `<div style="padding:.4rem .5rem;border-bottom:1px solid var(--line);font-size:.85rem">
+        <div><strong>${escapeHtml(off.startDate)} – ${escapeHtml(off.endDate)}</strong></div>
+        <div>${escapeHtml(off.startTime)} – ${escapeHtml(off.endTime)}</div>
+        ${off.note? `<div style="opacity:.85">${escapeHtml(off.note)}</div>`:''}
+      </div>`;
+    }).join('');
+  }
+
+  findBtn.addEventListener('click',()=>{
+    clearSuggest();
+    updateFindDefaultsFromState();
+    fResult.innerHTML = '';
+    findModal.showModal();
+  });
+  findCancelBtn.addEventListener('click',()=> findModal.close());
+  fClearMark.addEventListener('click',()=> clearSuggest());
+
+  function readCriteriaFromUI(){
+    const startDate = new Date(fStartDate.value);
+    const duration = Number(fDuration.value);
+    const fromMin = toMin(fFrom.value);
+    const toMinVal = toMin(fTo.value);
+    const days = [...findForm.querySelectorAll('.fDay:checked')].map(x=>Number(x.value));
+    return { startDate: toISODate(startDate), duration, fromMin, toMin: toMinVal, days };
+  }
+  function saveFindState(obj){
+    try{ localStorage.setItem('findState_v1', JSON.stringify(obj)); }catch(e){}
+    fNextBtn.disabled = !obj || !obj.cursor;
+  }
+  function loadFindState(){
+    try{ const x=JSON.parse(localStorage.getItem('findState_v1')||'null'); return x; }catch(e){ return null; }
+  }
+  function toTime(m){const hh=Math.floor(m/60),mm=m%60;return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`}
+
+  function updateFindDefaultsFromState(){
+    const st = loadFindState();
+    if(st && st.criteria){
+      const c=st.criteria;
+      fStartDate.value = c.startDate || toISODate(currentMonday);
+      fDuration.value = String(c.duration || 30);
+      fFrom.value = toTime(c.fromMin || 8*60);
+      fTo.value = toTime(c.toMin || 19*60);
+      [...document.querySelectorAll('.fDay')].forEach(cb=>{
+        cb.checked = c.days ? c.days.includes(Number(cb.value)) : (Number(cb.value)<=4);
+      });
+      fNextBtn.disabled = !st.cursor;
+    }else{
+      fStartDate.value = toISODate(currentMonday);
+      fDuration.value = '30';
+      fFrom.value = '08:00';
+      fTo.value = '19:00';
+      [...document.querySelectorAll('.fDay')].forEach(cb=> cb.checked = Number(cb.value)<=4 );
+      fNextBtn.disabled = true;
+    }
+  }
+
+  findForm.addEventListener('submit',(e)=>{
+    e.preventDefault();
+    clearSuggest();
+    const criteria = readCriteriaFromUI();
+    saveFindState({criteria, cursor:null});
+    const res = findFirstFreeSlot(criteria, null);
+    if(!res){ showNoResult(); return; }
+    applySuggestion(res, criteria);
+  });
+  fNextBtn.addEventListener('click',()=>{
+    const state = loadFindState();
+    if(!state || !state.criteria){ return; }
+    const nextFrom = state.cursor ? state.cursor : null;
+    const res = findFirstFreeSlot(state.criteria, nextFrom);
+    if(!res){ showNoResult(); return; }
+    applySuggestion(res, state.criteria);
+  });
+
+  function findFirstFreeSlot(criteria, afterCursor){
+    const startDate = new Date(criteria.startDate);
+    let d = afterCursor ? new Date(afterCursor.dateISO) : new Date(startDate);
+    let startTimeMin = afterCursor ? afterCursor.timeMin + SLOT_MIN : criteria.fromMin;
+
+    const maxDays = 26*7;
+    for(let dayCount=0; dayCount<maxDays; dayCount++){
+      const dow = d.getDay();
+      const weekDayIdx = (dow+6)%7;
+      const isWorkday = dow>=1 && dow<=5;
+      if(isWorkday && criteria.days.includes(weekDayIdx)){
+        outer:
+        for(let t=startTimeMin; t+criteria.duration<=criteria.toMin; t+=SLOT_MIN){
+          const items=appts.filter(a=>{
+            const ad = parseDayKeyLocal(a.dayKey);
+            return sameDate(ad, d);
+          });
+          for(const it of items){
+            const s1=t, e1=t+criteria.duration;
+            const s2=toMin(it.startTime), e2=s2+it.duration;
+            if(Math.max(s1,s2) < Math.min(e1,e2)) { continue outer; }
+          }
+          if(!hasTimeoffConflict(d, t, criteria.duration)) {
+            return { date:new Date(d), time:t };
+          }
+        }
+      }
+      d.setDate(d.getDate()+1);
+      startTimeMin = criteria.fromMin;
+    }
+    return null;
+  }
+
+  function computeFreeSlotsForWeek(weekMonday, criteria){
+    const slots=[];
+    for(let offset=0;offset<5;offset++){
+      const d=new Date(weekMonday);
+      d.setDate(d.getDate()+offset);
+      const dow=d.getDay();
+      const weekDayIdx=(dow+6)%7;
+      if(!criteria.days.includes(weekDayIdx)) continue;
+      const items=appts.filter(a=>{
+        const ad=parseDayKeyLocal(a.dayKey);
+        return sameDate(ad,d);
+      });
+      outer:
+      for(let t=criteria.fromMin; t+criteria.duration<=criteria.toMin; t+=SLOT_MIN){
+        for(const it of items){
+          const s1=t, e1=t+criteria.duration;
+          const s2=toMin(it.startTime), e2=s2+it.duration;
+          if(Math.max(s1,s2) < Math.min(e1,e2)) { continue outer; }
+        }
+        if(!hasTimeoffConflict(d, t, criteria.duration)){
+          slots.push({date:new Date(d), timeMin:t});
+        }
+      }
+    }
+    return slots;
+  }
+
+  function applySuggestion(res, criteria){
+    const weekMonday = startOfWeek(res.date);
+    const dayIdx = (res.date.getDay()+6)%7;
+
+    const sameWeek = toWeekKey(weekMonday) === toWeekKey(currentMonday);
+    if(sameWeek){
+      highlightWeekSlots(weekMonday, criteria);
+    }
+
+    fResult.innerHTML = `
+      <div style="padding:.6rem;border:1px solid var(--line);border-radius:.5rem">
+        <div style="margin-bottom:.45rem"><strong>Következő szabad idősáv:</strong> ${fmtDate(res.date)} • ${['H','K','Sze','Cs','P'][dayIdx]} • ${minToTime(res.time)} (${criteria.duration}p)</div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button type="button" id="fJump">Ugrás ehhez a héthez</button>
+          <button type="button" id="fCreate">Foglalás ide</button>
+          ${pickedId ? `<button type="button" id="fMove">Kijelölt másolása ide</button>` : ``}
+        </div>
+      </div>
+    `;
+
+    document.getElementById('fJump').onclick=()=>{
+      currentMonday = weekMonday;
+      render();
+      highlightWeekSlots(weekMonday, criteria);
+    };
+    document.getElementById('fCreate').onclick=()=>{
+      currentMonday = weekMonday;
+      render();
+      openNewAt((res.date.getDay()+6)%7, minToTime(res.time));
+    };
+    const mv=document.getElementById('fMove');
+    if(mv){
+      mv.onclick=()=>{
+        const appt=appts.find(x=>x.id===pickedId);
+        if(!appt) return;
+        const targetDate = new Date(res.date);
+        if(hasTimeoffConflict(targetDate, res.time, appt.duration)){ showToast(); return; }
+
+        pushHistory();
+        appts.push(cleanCopyFromAppt(appt, (targetDate.getDay()+6)%7, targetDate, minToTime(res.time)));
+        saveAppts();
+        clearPicked();
+        render();
+      };
+    }
+
+    saveFindState({
+      criteria,
+      cursor: { dateISO: toISODate(res.date), timeMin: res.time }
+    });
+  }
+
+  function highlightWeekSlots(weekMonday, criteria){
+    clearSuggest();
+    const slots=computeFreeSlotsForWeek(weekMonday, criteria);
+    slots.forEach(slot=>{
+      const dayIndex=(slot.date.getDay()+6)%7;
+      const col=document.querySelector(`.daycol[data-day-index="${dayIndex}"]`);
+      if(!col) return;
+      const top = offsetForTime(col, minToTime(slot.timeMin)) + 1;
+      const height = Math.max(SLOT_H, Math.round(criteria.duration/SLOT_MIN)*SLOT_H) - 2;
+      const sb=document.createElement('div');
+      sb.className='suggestblock';
+      sb.style.top=top+'px';
+      sb.style.height=height+'px';
+      col.appendChild(sb);
+    });
+    if(slots.length){
+      const first=slots[0];
+      const idx=(first.date.getDay()+6)%7;
+      const col=document.querySelector(`.daycol[data-day-index="${idx}"]`);
+      if(col) col.scrollIntoView({block:'nearest', inline:'nearest'});
+    }
+  }
+
+  function clearSuggest(){
+    document.querySelectorAll('.suggestblock').forEach(n=>n.remove());
+    suggestNode=null;
+  }
+
+  function renderWaitlist(){
+    wlList.innerHTML = waitlist.map(w=>`
+      <div class="wl-card" draggable="true" data-wid="${w.id}">
+        <div class="nm">${escapeHtml(w.name)}</div>
+        <div style="font-size:.8rem; opacity:.8">Tervezett: ${w.duration} p</div>
+      </div>
+    `).join('');
+    [...wlList.querySelectorAll('.wl-card')].forEach(card=>{
+      card.addEventListener('dragstart', (e)=>{
+        card.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', 'wl:'+card.dataset.wid);
+      });
+      card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
+    });
+  }
+
+  wlAdd.addEventListener('click', ()=>{
+    const name = wlName.value.trim();
+    const dur  = Number(wlDur.value)||30;
+    if(!name) return;
+    pushHistory();
+    waitlist.push({id:'w_'+Math.random().toString(36).slice(2,9), name, duration:dur});
+    saveWaitlist();
+    wlName.value='';
+    renderWaitlist();
+  });
+  wlClear.addEventListener('click', ()=>{
+    if(!waitlist.length) return;
+    if(!confirm('Biztosan törlöd a teljes várólistát?')) return;
+    pushHistory();
+    waitlist=[];
+    saveWaitlist();
+    renderWaitlist();
+  });
+
+  if(wlPane){
+    wlPane.addEventListener('dragover', e => e.preventDefault());
+    wlPane.addEventListener('drop', e => {
+      e.preventDefault();
+      const dt = e.dataTransfer.getData('text/plain');
+      if(!dt) return;
+      if(dt.startsWith('wl:')) return;
+      const appt = appts.find(a => a.id === dt);
+      if(!appt) return;
+      pushHistory();
+      waitlist.push({
+        id: 'w_'+Math.random().toString(36).slice(2,9),
+        name: appt.patientName,
+        duration: appt.duration
+      });
+      appts = appts.filter(a => a.id !== appt.id);
+      saveAppts();
+      saveWaitlist();
+      render();
+    });
+  }
+
+  render();
+
+  function showToast(){
+    toast.classList.add('show');
+    setTimeout(()=> toast.classList.remove('show'), 1600);
+  }
+  function showNoResult(){
+    fResult.innerHTML = `<div style="padding:.6rem;border:1px solid var(--line);border-radius:.5rem">Nem találtam a feltételeknek megfelelő szabad idősávot.</div>`;
+  }
+})();
+</script>
+</body>
+</html>
