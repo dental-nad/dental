@@ -355,7 +355,24 @@
   </form>
 </dialog>
 
-<script>
+<!-- FIREBASE + APP SCRIPT -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+// A TE projekted configja
+const firebaseConfig = {
+  apiKey: "AIzaSyC9JO11pPTqQZVa2RvF_LBQMC9EmrxOdnY",
+  authDomain: "dental-e03af.firebaseapp.com",
+  projectId: "dental-e03af",
+  storageBucket: "dental-e03af.firebasestorage.app",
+  messagingSenderId: "190505503868",
+  appId: "1:190505503868:web:1e9a59551887c8f4714df9"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 (function(){
   const HOUR_START=8, HOUR_END=19, SLOT_MIN=15, SLOT_H=36;
 
@@ -468,6 +485,16 @@
   let timeoffs=loadTimeoffs();
   let waitlist=loadWaitlist();
 
+  // Firestore mentés: minden változásnál az egész állapotot egy doc-ba rakjuk
+  async function saveAllToFirestore(){
+    try{
+      const payload = { appts, timeoffs, waitlist };
+      await setDoc(doc(db, "scheduler", "state"), payload);
+    }catch(err){
+      console.error("Nem sikerült Firestore-ba menteni:", err);
+    }
+  }
+
   let editingId=null;
   let expandedDayIndex=null;
   let pickedId=null;
@@ -503,7 +530,11 @@
   }
   function toISODate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
 
-  function saveAppts(){localStorage.setItem('demo_appointments_v36', JSON.stringify(appts))}
+  // LOCAL + FIRESTORE mentés
+  function saveAppts(){
+    localStorage.setItem('demo_appointments_v36', JSON.stringify(appts));
+    saveAllToFirestore();
+  }
   function loadAppts(){let data=null; try{data=JSON.parse(localStorage.getItem('demo_appointments_v36')||'null')}catch(e){} if(!data){data=seed()} data.forEach(a=>{ if(!a.lanePref) a.lanePref={}; if(typeof a.isProsthesis!=='boolean') a.isProsthesis=false; }); return data}
   function seed(){
     const list=[]; const base=startOfWeek(new Date());
@@ -523,10 +554,16 @@
     return list;
   }
 
-  function saveTimeoffs(){localStorage.setItem('demo_timeoffs_v1', JSON.stringify(timeoffs||[]))}
+  function saveTimeoffs(){
+    localStorage.setItem('demo_timeoffs_v1', JSON.stringify(timeoffs||[]));
+    saveAllToFirestore();
+  }
   function loadTimeoffs(){let t=null; try{t=JSON.parse(localStorage.getItem('demo_timeoffs_v1')||'null')}catch(e){} return Array.isArray(t)?t:[]}
 
-  function saveWaitlist(){localStorage.setItem('demo_waitlist_v1', JSON.stringify(waitlist||[]))}
+  function saveWaitlist(){
+    localStorage.setItem('demo_waitlist_v1', JSON.stringify(waitlist||[]));
+    saveAllToFirestore();
+  }
   function loadWaitlist(){let t=null; try{t=JSON.parse(localStorage.getItem('demo_waitlist_v1')||'null')}catch(e){} return Array.isArray(t)?t:[]}
 
   function hasTimeoffConflict(dateObj, startMin, duration){
@@ -1002,7 +1039,7 @@
         S.add('attended');
         S.delete('no-show');
         S.delete('lemondta');
-        S.delete('cancelled'); // megjelent és kihúzva ne legyen együtt
+        S.delete('cancelled');
       }
       S.delete('plus1');
     } else if(action==='no-show'){
@@ -1018,7 +1055,7 @@
         S.delete('cancelled');
       } else {
         S.add('cancelled');
-        S.delete('attended'); // kihúzva bekapcsolásakor vegye le a megjelent-et
+        S.delete('attended');
       }
     } else if(action==='plus1'){
       if(S.has('plus1')) S.delete('plus1'); else S.add('plus1');
@@ -1071,7 +1108,7 @@
             S.add('attended');
             S.delete('no-show');
             S.delete('lemondta');
-            S.delete('cancelled'); // modalban is: megjelent és kihúzva ne legyen együtt
+            S.delete('cancelled');
           }
           S.delete('plus1');
         } else if(act==='no-show'){
@@ -1085,7 +1122,7 @@
             S.delete('cancelled');
           } else {
             S.add('cancelled');
-            S.delete('attended'); // kihúzva bekapcsolásakor vegye le a megjelent-et
+            S.delete('attended');
           }
         } else if(act==='plus1'){
           if(S.has('plus1')) S.delete('plus1'); else S.add('plus1');
@@ -1636,6 +1673,25 @@
   }
 
   render();
+
+  // Betöltés Firestore-ból indulás után – ha van mentett állapot, az felülírja a localStorage-ot
+  (async function syncFromFirestoreOnLoad(){
+    try{
+      const snap = await getDoc(doc(db, "scheduler", "state"));
+      if(snap.exists()){
+        const data = snap.data() || {};
+        if(Array.isArray(data.appts)) appts = data.appts;
+        if(Array.isArray(data.timeoffs)) timeoffs = data.timeoffs;
+        if(Array.isArray(data.waitlist)) waitlist = data.waitlist;
+        saveAppts();
+        saveTimeoffs();
+        saveWaitlist();
+        render();
+      }
+    }catch(err){
+      console.warn("Nem sikerült Firestore-ból betölteni:", err);
+    }
+  })();
 
   function showToast(){
     toast.classList.add('show');
