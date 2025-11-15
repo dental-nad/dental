@@ -116,7 +116,6 @@
   .appt.lemondta{border-color:#b45309;background:linear-gradient(180deg,#2b1a0a,#1f1407)}
   .appt.cancelled{opacity:.85;text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#ef4444;border-style:dashed}
   .appt.no-show.cancelled{background:linear-gradient(180deg,#2b0d0d,#1f0d0d); opacity:1}
-  /* ÚJ: Lemondta + Kihúzva esetben maradjon a lemondás háttere */
   .appt.lemondta.cancelled{background:linear-gradient(180deg,#2b1a0a,#1f1407);border-color:#b45309;}
 
   body.light .appt.attended{border-color:#16a34a;background:#ecfdf5}
@@ -125,7 +124,6 @@
   body.light .appt.cancelled{border-color:#9ca3af;background:#f9fafb; text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#ef4444}
   body.light .appt.no-show.cancelled{background:#fee2e2; opacity:1}
   body.light .appt.plus1{border-color:#f59e0b;background-image:repeating-linear-gradient(45deg, rgba(253,230,138,.6) 0 10px, rgba(0,0,0,0) 10px 20px),linear-gradient(180deg,#ffffff,#ffffff)}
-  /* ÚJ: Lemondta + Kihúzva light módban is maradjon a lemondás háttere */
   body.light .appt.lemondta.cancelled{background:#fffbeb;border-color:#f59e0b;}
 
   .appt.picked{outline:2px solid #fde68a; box-shadow:0 0 0 4px rgba(253,230,138,.25), 0 6px 16px rgba(0,0,0,.25)}
@@ -355,12 +353,16 @@
   </form>
 </dialog>
 
-<!-- FIREBASE + APP SCRIPT -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  collection,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-// A TE projekted configja
 const firebaseConfig = {
   apiKey: "AIzaSyC9JO11pPTqQZVa2RvF_LBQMC9EmrxOdnY",
   authDomain: "dental-e03af.firebaseapp.com",
@@ -481,17 +483,42 @@ const db = getFirestore(app);
   populateFindTimeSelects();
 
   let currentMonday=startOfWeek(new Date());
+
   let appts=loadAppts();
   let timeoffs=loadTimeoffs();
   let waitlist=loadWaitlist();
+  let patients=[];
 
-  // Firestore mentés: minden változásnál az egész állapotot egy doc-ba rakjuk
-  async function saveAllToFirestore(){
+  async function syncAppointmentsToFirestore(){
     try{
-      const payload = { appts, timeoffs, waitlist };
-      await setDoc(doc(db, "scheduler", "state"), payload);
+      const ops = appts.map(a=> setDoc(doc(db, "appointments", a.id), a));
+      await Promise.all(ops);
     }catch(err){
-      console.error("Nem sikerült Firestore-ba menteni:", err);
+      console.error("Nem sikerült az appointments kollekciót menteni:", err);
+    }
+  }
+  async function syncTimeoffsToFirestore(){
+    try{
+      const ops = timeoffs.map(t=> setDoc(doc(db, "timeoffs", t.id), t));
+      await Promise.all(ops);
+    }catch(err){
+      console.error("Nem sikerült a timeoffs kollekciót menteni:", err);
+    }
+  }
+  async function syncWaitlistToFirestore(){
+    try{
+      const ops = waitlist.map(w=> setDoc(doc(db, "waitlist", w.id), w));
+      await Promise.all(ops);
+    }catch(err){
+      console.error("Nem sikerült a waitlist kollekciót menteni:", err);
+    }
+  }
+  async function syncPatientsToFirestore(){
+    try{
+      const ops = patients.map(p=> setDoc(doc(db, "patients", p.id), p));
+      await Promise.all(ops);
+    }catch(err){
+      console.error("Nem sikerült a patients kollekciót menteni:", err);
     }
   }
 
@@ -502,12 +529,22 @@ const db = getFirestore(app);
   let suggestNode=null;
 
   let historyStack=[];
-  function pushHistory(){ historyStack.push(JSON.stringify({appts,timeoffs,waitlist})); if(historyStack.length>50) historyStack.shift(); undoBtn.disabled=false; }
+  function pushHistory(){
+    historyStack.push(JSON.stringify({appts,timeoffs,waitlist,patients}));
+    if(historyStack.length>50) historyStack.shift();
+    undoBtn.disabled=false;
+  }
   undoBtn.addEventListener('click',()=>{
     if(!historyStack.length) return;
     const s=JSON.parse(historyStack.pop());
-    appts=s.appts; timeoffs=s.timeoffs; waitlist=s.waitlist||[];
-    saveAppts(); saveTimeoffs(); saveWaitlist();
+    appts=s.appts||[];
+    timeoffs=s.timeoffs||[];
+    waitlist=s.waitlist||[];
+    patients=s.patients||[];
+    saveAppts();
+    saveTimeoffs();
+    saveWaitlist();
+    refreshPatientDatalist();
     render();
     undoBtn.disabled=historyStack.length===0;
   });
@@ -530,12 +567,20 @@ const db = getFirestore(app);
   }
   function toISODate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
 
-  // LOCAL + FIRESTORE mentés
   function saveAppts(){
     localStorage.setItem('demo_appointments_v36', JSON.stringify(appts));
-    saveAllToFirestore();
+    syncAppointmentsToFirestore();
   }
-  function loadAppts(){let data=null; try{data=JSON.parse(localStorage.getItem('demo_appointments_v36')||'null')}catch(e){} if(!data){data=seed()} data.forEach(a=>{ if(!a.lanePref) a.lanePref={}; if(typeof a.isProsthesis!=='boolean') a.isProsthesis=false; }); return data}
+  function loadAppts(){
+    let data=null;
+    try{data=JSON.parse(localStorage.getItem('demo_appointments_v36')||'null')}catch(e){}
+    if(!data){data=seed()}
+    data.forEach(a=>{
+      if(!a.lanePref) a.lanePref={};
+      if(typeof a.isProsthesis!=='boolean') a.isProsthesis=false;
+    });
+    return data;
+  }
   function seed(){
     const list=[]; const base=startOfWeek(new Date());
     const mk=(name, di, t, dur, status='booked', notes='', prost=false)=>{
@@ -556,15 +601,23 @@ const db = getFirestore(app);
 
   function saveTimeoffs(){
     localStorage.setItem('demo_timeoffs_v1', JSON.stringify(timeoffs||[]));
-    saveAllToFirestore();
+    syncTimeoffsToFirestore();
   }
-  function loadTimeoffs(){let t=null; try{t=JSON.parse(localStorage.getItem('demo_timeoffs_v1')||'null')}catch(e){} return Array.isArray(t)?t:[]}
+  function loadTimeoffs(){
+    let t=null;
+    try{t=JSON.parse(localStorage.getItem('demo_timeoffs_v1')||'null')}catch(e){}
+    return Array.isArray(t)?t:[];
+  }
 
   function saveWaitlist(){
     localStorage.setItem('demo_waitlist_v1', JSON.stringify(waitlist||[]));
-    saveAllToFirestore();
+    syncWaitlistToFirestore();
   }
-  function loadWaitlist(){let t=null; try{t=JSON.parse(localStorage.getItem('demo_waitlist_v1')||'null')}catch(e){} return Array.isArray(t)?t:[]}
+  function loadWaitlist(){
+    let t=null;
+    try{t=JSON.parse(localStorage.getItem('demo_waitlist_v1')||'null')}catch(e){}
+    return Array.isArray(t)?t:[];
+  }
 
   function hasTimeoffConflict(dateObj, startMin, duration){
     const dow=dateObj.getDay(); if(dow===0||dow===6) return false;
@@ -855,21 +908,12 @@ const db = getFirestore(app);
 
         node.draggable=true; node.dataset.id=it.id;
 
-        node.addEventListener('dragstart',(e)=>{
-          dragCopyMode = !!e.shiftKey;
-          const ghost=node.cloneNode(true);
-          ghost.style.position='absolute'; ghost.style.top='-9999px'; ghost.style.left='-9999px'; ghost.style.width=node.offsetWidth+'px';
-          document.body.appendChild(ghost);
-          e.dataTransfer.setDragImage(ghost, 10, 10);
-          setTimeout(()=> document.body.removeChild(ghost), 0);
-          e.dataTransfer.setData('text/plain', it.id);
-        });
-        node.addEventListener('dragend',()=>{ dragCopyMode=false; });
-
+        const patient = patients.find(p=>p.id===it.patientId);
+        const displayName = patient ? patient.name : (it.patientName || '');
         const noteHtml = it.notes ? `<div class="note">${escapeHtml(it.notes)}</div>` : '';
 
         node.innerHTML = `
-          <div class="name">${escapeHtml(it.startTime)} <span class="hit" data-open-profile="${it.patientName}">${escapeHtml(it.patientName)}</span></div>
+          <div class="name">${escapeHtml(it.startTime)} <span class="hit" data-open-pid="${it.patientId || ''}">${escapeHtml(displayName)}</span></div>
           ${noteHtml}
           <div class="actions-top">
             <span class="pill" data-act="attended" title="Megjelent">✓</span>
@@ -888,11 +932,23 @@ const db = getFirestore(app);
           <div class="handle bottom"></div>
         `;
 
+        node.addEventListener('dragstart',(e)=>{
+          dragCopyMode = !!e.shiftKey;
+          const ghost=node.cloneNode(true);
+          ghost.style.position='absolute'; ghost.style.top='-9999px'; ghost.style.left='-9999px'; ghost.style.width=node.offsetWidth+'px';
+          document.body.appendChild(ghost);
+          e.dataTransfer.setDragImage(ghost, 10, 10);
+          setTimeout(()=> document.body.removeChild(ghost), 0);
+          e.dataTransfer.setData('text/plain', it.id);
+        });
+        node.addEventListener('dragend',()=>{ dragCopyMode=false; });
+
         node.addEventListener('click',(e)=>{
           if(e.target.classList.contains('pill') || e.target.classList.contains('handle')) return;
           if(e.target.classList.contains('hit')){
             e.stopPropagation();
-            openPatientProfile(e.target.dataset.openProfile);
+            const pid = e.target.dataset.openPid;
+            if(pid) openPatientProfileById(pid);
             return;
           }
           const prev=document.querySelector(`.appt.picked`); if(prev && prev!==node) prev.classList.remove('picked');
@@ -986,9 +1042,10 @@ const db = getFirestore(app);
     const lane = nextFreeLaneFor(di, makeDayKeyLocal(nd), targetTime, src.duration, null);
     return {
       id:'a_'+Math.random().toString(36).slice(2,9),
+      patientId:src.patientId,
       patientName:src.patientName,
-      patientNameLower:src.patientNameLower,
-      phone:'',
+      patientNameLower:(src.patientNameLower || (src.patientName||'').toLowerCase()),
+      phone:src.phone || '',
       startTime:targetTime,
       duration:src.duration,
       notes:'',
@@ -1003,10 +1060,12 @@ const db = getFirestore(app);
   function cleanCopyFromWait(w, di, nd, targetTime){
     const dur = Number(w.duration)||30;
     const lane = nextFreeLaneFor(di, makeDayKeyLocal(nd), targetTime, dur, null);
+    const name = w.name || '';
     return {
       id:'a_'+Math.random().toString(36).slice(2,9),
-      patientName:w.name,
-      patientNameLower:w.name.toLowerCase(),
+      patientId:null,
+      patientName:name,
+      patientNameLower:name.toLowerCase(),
       phone:'',
       startTime:targetTime,
       duration:dur,
@@ -1080,8 +1139,13 @@ const db = getFirestore(app);
   function openEdit(id){
     const a=appts.find(x=>x.id===id); if(!a) return;
     editingId=id; modalTitle.textContent='Időpont szerkesztése';
-    mName.value=a.patientName; mPhone.value=a.phone||''; mDuration.value=String(a.duration); mNotes.value=a.notes||''; mProsthesis.checked=!!a.isProsthesis;
-    mDay.value=String(a.dayIndex); mStartTime.value=a.startTime;
+    mName.value=a.patientName || '';
+    mPhone.value=a.phone||'';
+    mDuration.value=String(a.duration);
+    mNotes.value=a.notes||'';
+    mProsthesis.checked=!!a.isProsthesis;
+    mDay.value=String(a.dayIndex);
+    mStartTime.value=a.startTime;
     const date=parseDayKeyLocal(a.dayKey); mDate.value=fmtDate(date);
     syncModalStatus(parseStatuses(a.status));
     modal.showModal();
@@ -1138,32 +1202,77 @@ const db = getFirestore(app);
 
   cancelBtn.addEventListener('click',()=> modal.close());
 
+  function getOrCreatePatient(nameRaw, phoneRaw){
+    const name = nameRaw.trim();
+    const phone = phoneRaw.trim();
+    const nameLower = name.toLowerCase();
+    if(!name) return null;
+
+    let p = patients.find(px=>px.nameLower===nameLower);
+    if(p){
+      if(phone && !p.phone){
+        p.phone = phone;
+        syncPatientsToFirestore();
+      }
+      return p;
+    }
+    const id = 'p_'+Math.random().toString(36).slice(2,9);
+    p = { id, name, nameLower, phone };
+    patients.push(p);
+    syncPatientsToFirestore();
+    return p;
+  }
+
   form.addEventListener('submit',(e)=>{
     e.preventDefault();
-    const dayIndex=Number(mDay.value); const date=new Date(currentMonday); date.setDate(date.getDate()+dayIndex);
+    const dayIndex=Number(mDay.value);
+    const date=new Date(currentMonday); date.setDate(date.getDate()+dayIndex);
+
+    const name = mName.value.trim();
+    if(!name) return;
+
+    const patient = getOrCreatePatient(name, mPhone.value || '');
+    if(!patient) return;
+
     const payload={
-      patientName:mName.value.trim(),
-      patientNameLower:mName.value.trim().toLowerCase(),
+      patientId: patient.id,
+      patientName: patient.name,
+      patientNameLower: patient.nameLower,
       phone:mPhone.value.trim(),
       startTime:minToTime(snapMin(toMin(mStartTime.value))),
       duration:Number(mDuration.value),
       notes:mNotes.value.trim(),
       isProsthesis: !!mProsthesis.checked
     };
-    if(!payload.patientName) return;
+
     if(hasTimeoffConflict(date, toMin(payload.startTime), payload.duration)){ showToast(); return; }
     const Snew = new Set(JSON.parse(statusBar.dataset.current||'[]'));
     pushHistory();
     if(editingId){
       const a=appts.find(x=>x.id===editingId);
       if(!a) return;
-      a.patientName=payload.patientName; a.patientNameLower=payload.patientNameLower; a.phone=payload.phone;
-      a.startTime=payload.startTime; a.duration=payload.duration; a.notes=payload.notes;
-      a.dayIndex=dayIndex; a.dayKey=makeDayKeyLocal(date); a.weekKey=toWeekKey(date);
+      a.patientId = payload.patientId;
+      a.patientName=payload.patientName;
+      a.patientNameLower=payload.patientNameLower;
+      a.phone=payload.phone;
+      a.startTime=payload.startTime;
+      a.duration=payload.duration;
+      a.notes=payload.notes;
+      a.dayIndex=dayIndex;
+      a.dayKey=makeDayKeyLocal(date);
+      a.weekKey=toWeekKey(date);
       a.status=serializeStatuses(Snew);
       a.isProsthesis=payload.isProsthesis;
     } else {
-      appts.push({id:'a_'+Math.random().toString(36).slice(2,9),...payload,status:serializeStatuses(Snew),dayIndex,dayKey:makeDayKeyLocal(date),weekKey:toWeekKey(date),lanePref:{}});
+      appts.push({
+        id:'a_'+Math.random().toString(36).slice(2,9),
+        ...payload,
+        status:serializeStatuses(Snew),
+        dayIndex,
+        dayKey:makeDayKeyLocal(date),
+        weekKey:toWeekKey(date),
+        lanePref:{}
+      });
     }
     saveAppts();
     modal.close();
@@ -1184,24 +1293,39 @@ const db = getFirestore(app);
 
   searchInput.addEventListener('input',()=>{
     const q=searchInput.value.trim().toLowerCase();
-    if(!q){ searchResults.style.display='none'; searchResults.innerHTML=''; return;}
-    const matchedNames = Array.from(new Set(
-      appts
-        .filter(a=>a.patientNameLower.includes(q))
-        .map(a=>a.patientName)
-    )).sort((a,b)=>a.localeCompare(b,'hu')).slice(0,10);
-    if(!matchedNames.length){ searchResults.style.display='none'; searchResults.innerHTML=''; return;}
-    searchResults.innerHTML = matchedNames.map(n=>`<div data-name="${escapeHtml(n)}">${escapeHtml(n)}</div>`).join('');
+    if(!q){
+      searchResults.style.display='none';
+      searchResults.innerHTML='';
+      return;
+    }
+    const matched = patients
+      .filter(p=>p.nameLower.includes(q))
+      .sort((a,b)=>a.name.localeCompare(b.name,'hu'))
+      .slice(0,10);
+    if(!matched.length){
+      searchResults.style.display='none';
+      searchResults.innerHTML='';
+      return;
+    }
+    searchResults.innerHTML = matched
+      .map(p=>`<div data-pid="${p.id}">${escapeHtml(p.name)}</div>`)
+      .join('');
     searchResults.style.display='block';
     [...searchResults.children].forEach(div=>{
       div.addEventListener('click',()=>{
-        const name = div.dataset.name;
-        openPatientProfile(name);
-        searchResults.style.display='none'; searchResults.innerHTML='';
+        const pid = div.dataset.pid;
+        if(pid) openPatientProfileById(pid);
+        searchResults.style.display='none';
+        searchResults.innerHTML='';
       });
     });
   });
-  document.addEventListener('click',(e)=>{ if(!searchResults.contains(e.target) && e.target!==searchInput){ searchResults.style.display='none'; searchResults.innerHTML=''; }});
+  document.addEventListener('click',(e)=>{
+    if(!searchResults.contains(e.target) && e.target!==searchInput){
+      searchResults.style.display='none';
+      searchResults.innerHTML='';
+    }
+  });
 
   prevWeekBtn.addEventListener('click',()=>{ currentMonday.setDate(currentMonday.getDate()-7); render(); });
   nextWeekBtn.addEventListener('click',()=>{ currentMonday.setDate(currentMonday.getDate()+7); render(); });
@@ -1243,7 +1367,10 @@ const db = getFirestore(app);
         const height=Math.max(SLOT_H, Math.round(a.duration/SLOT_MIN)*SLOT_H)-2;
         resizing.node.style.top=(top+1)+'px';
         resizing.node.style.height=height+'px';
-        resizing.node.querySelector('.name').innerHTML = `${escapeHtml(a.startTime)} <span class="hit" data-open-profile="${a.patientName}">${escapeHtml(a.patientName)}</span>`;
+        const patient = patients.find(p=>p.id===a.patientId);
+        const dispName = patient ? patient.name : (a.patientName || '');
+        resizing.node.querySelector('.name').innerHTML =
+          `${escapeHtml(a.startTime)} <span class="hit" data-open-pid="${a.patientId || ''}">${escapeHtml(dispName)}</span>`;
       });
     }
   }
@@ -1254,7 +1381,15 @@ const db = getFirestore(app);
     if(hasTimeoffConflict(nd, toMin(a.startTime), a.duration)){
       showToast();
       const last = JSON.parse(historyStack.pop()||'null');
-      if(last){ appts=last.appts; timeoffs=last.timeoffs; waitlist=last.waitlist||[]; saveAppts(); saveTimeoffs(); saveWaitlist(); }
+      if(last){
+        appts=last.appts||[];
+        timeoffs=last.timeoffs||[];
+        waitlist=last.waitlist||[];
+        patients=last.patients||[];
+        saveAppts();
+        saveTimeoffs();
+        saveWaitlist();
+      }
     }else{
       saveAppts();
     }
@@ -1266,19 +1401,42 @@ const db = getFirestore(app);
   }
 
   function fillDaySelector(){
-    const days=[]; for(let i=0;i<5;i++){ const d=new Date(currentMonday); d.setDate(d.getDate()+i); days.push(d); }
-    mDay.innerHTML=''; days.forEach((d,idx)=>{const o=document.createElement('option'); o.value=idx; o.textContent=`${['H','K','Sze','Cs','P'][idx]} – ${fmtDate(d)}`; mDay.appendChild(o);});
+    const days=[];
+    for(let i=0;i<5;i++){
+      const d=new Date(currentMonday);
+      d.setDate(d.getDate()+i);
+      days.push(d);
+    }
+    mDay.innerHTML='';
+    days.forEach((d,idx)=>{
+      const o=document.createElement('option');
+      o.value=idx;
+      o.textContent=`${['H','K','Sze','Cs','P'][idx]} – ${fmtDate(d)}`;
+      mDay.appendChild(o);
+    });
     if(!mDuration.value) mDuration.value='30';
   }
 
   function refreshPatientDatalist(){
-    const names = Array.from(new Set(appts.map(a=>a.patientName).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'hu'));
+    const names = patients
+      .map(p=>p.name)
+      .filter(Boolean)
+      .sort((a,b)=>a.localeCompare(b,'hu'));
     patientListEl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}">`).join('');
   }
 
-  function openPatientProfile(name){
-    const nameLower=name.toLowerCase();
-    const list = appts.filter(a=>a.patientNameLower===nameLower).sort((a,b)=>tsOfAppt(b)-tsOfAppt(a));
+  function openPatientProfileById(patientId){
+    const patient = patients.find(p=>p.id===patientId);
+    if(!patient){
+      sideInner.innerHTML = `<div>Ismeretlen páciens.</div>`;
+      side.classList.add('open');
+      return;
+    }
+
+    const list = appts
+      .filter(a=>a.patientId===patientId)
+      .sort((a,b)=>tsOfAppt(b)-tsOfAppt(a));
+
     const totals = {count:list.length, noshow:0, cancelled:0, attended:0, plus1:0, prosthesis:0, lemondta:0};
     list.forEach(a=>{
       const S=parseStatuses(a.status);
@@ -1326,15 +1484,57 @@ const db = getFirestore(app);
 
     sideInner.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-        <div style="font-weight:800;font-size:1.05rem">${escapeHtml(name)}</div>
+        <div>
+          <div style="font-weight:800;font-size:1.05rem" id="pNameDisplay">${escapeHtml(patient.name)}</div>
+          <div style="font-size:.85rem;opacity:.8" id="pPhoneDisplay">${patient.phone ? escapeHtml(patient.phone) : ''}</div>
+        </div>
         <button id="closeSide">✕</button>
       </div>
+
+      <div style="margin-bottom:.75rem;padding:.5rem;border:1px solid var(--line);border-radius:.5rem">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:.25rem">Páciens adatok szerkesztése</div>
+        <label>Név</label>
+        <input id="pNameEdit" value="${escapeHtml(patient.name)}">
+        <label>Telefon</label>
+        <input id="pPhoneEdit" value="${escapeHtml(patient.phone || '')}">
+        <div style="margin-top:.4rem;display:flex;justify-content:flex-end;gap:.5rem">
+          <button type="button" id="pSaveBtn">Mentés</button>
+        </div>
+      </div>
+
       <div style="margin:.25rem 0 .5rem">${chips.join(' ')}</div>
       <div style="border-top:1px solid var(--line);margin:.5rem 0"></div>
       ${rows || '<div style="font-size:.85rem;color:var(--muted)">Nincs rögzített időpont.</div>'}
     `;
     side.classList.add('open');
     document.getElementById('closeSide').onclick=()=> side.classList.remove('open');
+
+    const pSaveBtn = document.getElementById('pSaveBtn');
+    const pNameEdit = document.getElementById('pNameEdit');
+    const pPhoneEdit = document.getElementById('pPhoneEdit');
+
+    if(pSaveBtn){
+      pSaveBtn.onclick = ()=>{
+        const newName = (pNameEdit.value || '').trim();
+        const newPhone = (pPhoneEdit.value || '').trim();
+        if(!newName) return;
+        patient.name = newName;
+        patient.nameLower = newName.toLowerCase();
+        patient.phone = newPhone;
+
+        appts.forEach(a=>{
+          if(a.patientId === patient.id){
+            a.patientName = patient.name;
+            a.patientNameLower = patient.nameLower;
+          }
+        });
+
+        syncPatientsToFirestore();
+        saveAppts();
+        refreshPatientDatalist();
+        openPatientProfileById(patient.id);
+      };
+    }
 
     sideInner.querySelectorAll('.row[data-appt-id]').forEach(row=>{
       row.addEventListener('click',()=>{
@@ -1353,7 +1553,13 @@ const db = getFirestore(app);
             pickedId=id;
             el.classList.add('picked');
             updateMoveBar();
-            setTimeout(()=>{ if(el.classList.contains('picked') && pickedId===id){ el.classList.remove('picked'); pickedId=null; updateMoveBar(); }}, 1500);
+            setTimeout(()=>{
+              if(el.classList.contains('picked') && pickedId===id){
+                el.classList.remove('picked');
+                pickedId=null;
+                updateMoveBar();
+              }
+            }, 1500);
           }
         },0);
       });
@@ -1399,7 +1605,10 @@ const db = getFirestore(app);
 
   function refreshOffList(){
     if(!offList) return;
-    if(!timeoffs.length){ offList.innerHTML='<div style="padding:.4rem .5rem;font-size:.85rem;color:var(--muted)">Nincs rögzített szabadság.</div>'; return;}
+    if(!timeoffs.length){
+      offList.innerHTML='<div style="padding:.4rem .5rem;font-size:.85rem;color:var(--muted)">Nincs rögzített szabadság.</div>';
+      return;
+    }
     offList.innerHTML=timeoffs.map(off=>{
       return `<div style="padding:.4rem .5rem;border-bottom:1px solid var(--line);font-size:.85rem">
         <div><strong>${escapeHtml(off.startDate)} – ${escapeHtml(off.endDate)}</strong></div>
@@ -1672,24 +1881,73 @@ const db = getFirestore(app);
     });
   }
 
+  function ensurePatientsFromAppts(){
+    const byLower = new Map();
+    patients.forEach(p=> byLower.set(p.nameLower, p));
+    appts.forEach(a=>{
+      const name = a.patientName || a.patientNameLower || '';
+      const lower = (a.patientNameLower || name.toLowerCase());
+      a.patientName = name;
+      a.patientNameLower = lower;
+      if(a.patientId){
+        const exists = patients.find(p=>p.id===a.patientId);
+        if(exists){
+          if(!exists.name) { exists.name=name; exists.nameLower=lower; }
+          return;
+        }
+      }
+      let p = byLower.get(lower);
+      if(!p){
+        const id = 'p_'+Math.random().toString(36).slice(2,9);
+        p = { id, name, nameLower:lower, phone:a.phone || '' };
+        patients.push(p);
+        byLower.set(lower, p);
+      }
+      a.patientId = p.id;
+    });
+  }
+
   render();
 
-  // Betöltés Firestore-ból indulás után – ha van mentett állapot, az felülírja a localStorage-ot
   (async function syncFromFirestoreOnLoad(){
     try{
-      const snap = await getDoc(doc(db, "scheduler", "state"));
-      if(snap.exists()){
-        const data = snap.data() || {};
-        if(Array.isArray(data.appts)) appts = data.appts;
-        if(Array.isArray(data.timeoffs)) timeoffs = data.timeoffs;
-        if(Array.isArray(data.waitlist)) waitlist = data.waitlist;
+      const [pSnap, aSnap, tSnap, wSnap] = await Promise.all([
+        getDocs(collection(db, "patients")),
+        getDocs(collection(db, "appointments")),
+        getDocs(collection(db, "timeoffs")),
+        getDocs(collection(db, "waitlist"))
+      ]);
+
+      if(!pSnap.empty || !aSnap.empty || !tSnap.empty || !wSnap.empty){
+        patients = [];
+        pSnap.forEach(d=> patients.push(d.data()));
+        appts = [];
+        aSnap.forEach(d=> appts.push(d.data()));
+        timeoffs = [];
+        tSnap.forEach(d=> timeoffs.push(d.data()));
+        waitlist = [];
+        wSnap.forEach(d=> waitlist.push(d.data()));
+
+        ensurePatientsFromAppts();
         saveAppts();
         saveTimeoffs();
         saveWaitlist();
+        refreshPatientDatalist();
+        render();
+      } else {
+        ensurePatientsFromAppts();
+        await syncPatientsToFirestore();
+        await syncAppointmentsToFirestore();
+        await syncTimeoffsToFirestore();
+        await syncWaitlistToFirestore();
+        refreshPatientDatalist();
         render();
       }
     }catch(err){
       console.warn("Nem sikerült Firestore-ból betölteni:", err);
+      ensurePatientsFromAppts();
+      refreshPatientDatalist();
+      render();
     }
   })();
 
