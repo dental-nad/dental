@@ -359,6 +359,7 @@ import {
   getFirestore,
   doc,
   setDoc,
+  deleteDoc,
   collection,
   getDocs
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
@@ -797,6 +798,7 @@ const db = getFirestore(app);
           appts.push(cleanCopyFromWait(node, i, nd, targetTime));
           waitlist = waitlist.filter(w=>w.id!==wid);
           saveWaitlist();
+          deleteDoc(doc(db,"waitlist",wid)).catch(err=>console.error("Nem sikerült törölni a várólista elemet:", err));
         }else{
           const moving=appts.find(x=>x.id===dt);
           if(!moving) return;
@@ -979,6 +981,7 @@ const db = getFirestore(app);
             appts.push(cleanCopyFromWait(item, di, nd, it.startTime));
             waitlist = waitlist.filter(w=>w.id!==wid);
             saveWaitlist();
+            deleteDoc(doc(db,"waitlist",wid)).catch(err=>console.error("Nem sikerült törölni a várólista elemet:", err));
           } else {
             const moving=appts.find(x=>x.id===movingId); if(!moving) return;
             const dur = moving.duration;
@@ -1039,7 +1042,8 @@ const db = getFirestore(app);
   }
 
   function cleanCopyFromAppt(src, di, nd, targetTime){
-    const lane = nextFreeLaneFor(di, makeDayKeyLocal(nd), targetTime, src.duration, null);
+    const laneKey = makeDayKeyLocal(nd);
+    const lane = nextFreeLaneFor(di, laneKey, targetTime, src.duration, null);
     return {
       id:'a_'+Math.random().toString(36).slice(2,9),
       patientId:src.patientId,
@@ -1052,20 +1056,34 @@ const db = getFirestore(app);
       status:'booked',
       isProsthesis:false,
       dayIndex:di,
-      dayKey:makeDayKeyLocal(nd),
+      dayKey:laneKey,
       weekKey:toWeekKey(nd),
-      lanePref:{ [makeDayKeyLocal(nd)]: lane }
+      lanePref:{ [laneKey]: lane }
     };
   }
   function cleanCopyFromWait(w, di, nd, targetTime){
     const dur = Number(w.duration)||30;
-    const lane = nextFreeLaneFor(di, makeDayKeyLocal(nd), targetTime, dur, null);
+    const dayKey = makeDayKeyLocal(nd);
+    const lane = nextFreeLaneFor(di, dayKey, targetTime, dur, null);
     const name = w.name || '';
+    let patient = null;
+    if(w.patientId){
+      patient = patients.find(p=>p.id===w.patientId) || null;
+    }
+    if(!patient && name){
+      patient = getOrCreatePatient(name, '');
+      if(patient){
+        w.patientId = patient.id;
+      }
+    }
+    const patientId = patient ? patient.id : null;
+    const patientName = patient ? patient.name : name;
+    const patientNameLower = (patientName || '').toLowerCase();
     return {
       id:'a_'+Math.random().toString(36).slice(2,9),
-      patientId:null,
-      patientName:name,
-      patientNameLower:name.toLowerCase(),
+      patientId,
+      patientName,
+      patientNameLower,
       phone:'',
       startTime:targetTime,
       duration:dur,
@@ -1073,9 +1091,9 @@ const db = getFirestore(app);
       status:'booked',
       isProsthesis:false,
       dayIndex:di,
-      dayKey:makeDayKeyLocal(nd),
+      dayKey,
       weekKey:toWeekKey(nd),
-      lanePref:{ [makeDayKeyLocal(nd)]: lane }
+      lanePref:{ [dayKey]: lane }
     };
   }
 
@@ -1845,7 +1863,9 @@ const db = getFirestore(app);
     const dur  = Number(wlDur.value)||30;
     if(!name) return;
     pushHistory();
-    waitlist.push({id:'w_'+Math.random().toString(36).slice(2,9), name, duration:dur});
+    const patient = getOrCreatePatient(name, '');
+    const patientId = patient ? patient.id : null;
+    waitlist.push({id:'w_'+Math.random().toString(36).slice(2,9), name, duration:dur, patientId});
     saveWaitlist();
     wlName.value='';
     renderWaitlist();
@@ -1853,9 +1873,13 @@ const db = getFirestore(app);
   wlClear.addEventListener('click', ()=>{
     if(!waitlist.length) return;
     if(!confirm('Biztosan törlöd a teljes várólistát?')) return;
+    const idsToDelete = waitlist.map(w=>w.id);
     pushHistory();
     waitlist=[];
     saveWaitlist();
+    idsToDelete.forEach(id=>{
+      deleteDoc(doc(db,"waitlist",id)).catch(err=>console.error("Nem sikerült törölni a várólista elemet:", err));
+    });
     renderWaitlist();
   });
 
@@ -1872,7 +1896,8 @@ const db = getFirestore(app);
       waitlist.push({
         id: 'w_'+Math.random().toString(36).slice(2,9),
         name: appt.patientName,
-        duration: appt.duration
+        duration: appt.duration,
+        patientId: appt.patientId || null
       });
       appts = appts.filter(a => a.id !== appt.id);
       saveAppts();
@@ -1884,6 +1909,7 @@ const db = getFirestore(app);
   function ensurePatientsFromAppts(){
     const byLower = new Map();
     patients.forEach(p=> byLower.set(p.nameLower, p));
+
     appts.forEach(a=>{
       const name = a.patientName || a.patientNameLower || '';
       const lower = (a.patientNameLower || name.toLowerCase());
@@ -1893,9 +1919,11 @@ const db = getFirestore(app);
         const exists = patients.find(p=>p.id===a.patientId);
         if(exists){
           if(!exists.name) { exists.name=name; exists.nameLower=lower; }
+          if(a.phone && !exists.phone) exists.phone = a.phone;
           return;
         }
       }
+      if(!lower) return;
       let p = byLower.get(lower);
       if(!p){
         const id = 'p_'+Math.random().toString(36).slice(2,9);
@@ -1905,6 +1933,29 @@ const db = getFirestore(app);
       }
       a.patientId = p.id;
     });
+
+    if(Array.isArray(waitlist)){
+      waitlist.forEach(w=>{
+        const name = w.name || '';
+        const lower = name.toLowerCase();
+        if(!lower) return;
+        if(w.patientId){
+          const exists = patients.find(p=>p.id===w.patientId);
+          if(exists){
+            if(!exists.name){ exists.name = name; exists.nameLower=lower; }
+            return;
+          }
+        }
+        let p = byLower.get(lower);
+        if(!p){
+          const id = 'p_'+Math.random().toString(36).slice(2,9);
+          p = { id, name, nameLower:lower, phone:'' };
+          patients.push(p);
+          byLower.set(lower, p);
+        }
+        w.patientId = p.id;
+      });
+    }
   }
 
   render();
@@ -1929,6 +1980,7 @@ const db = getFirestore(app);
         wSnap.forEach(d=> waitlist.push(d.data()));
 
         ensurePatientsFromAppts();
+        await syncPatientsToFirestore();
         saveAppts();
         saveTimeoffs();
         saveWaitlist();
