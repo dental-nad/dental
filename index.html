@@ -77,7 +77,7 @@
   .timecell.half{background:var(--half-bg);font-weight:600}
   .daycol{position:relative;background:linear-gradient(180deg,#0c1325,#0b1222);border-left:1px solid var(--line-2);padding-top:var(--colHeadH)}
   body.light .daycol{background:var(--panel)}
-  .slot{height:var(--slotH);border-bottom:1px dashed var(--line-dash)}
+  .slot{height:var(--slotH);border-bottom:1px dashed var(--line-dash')}
   .slot.today{background:rgba(34,211,238,.06)}
   .nowline{position:absolute;left:0;right:0;height:2px;background:var(--accent);box-shadow:0 0 8px var(--nowline-shadow);pointer-events:none}
 
@@ -617,8 +617,7 @@ const db = getFirestore(app);
   function loadWaitlist(){
     let t=null;
     try{t=JSON.parse(localStorage.getItem('demo_waitlist_v1')||'null')}catch(e){}
-    return Array.isArray(t)?t:[];
-  }
+    return Array.isArray(t)?t:[];  }
 
   function hasTimeoffConflict(dateObj, startMin, duration){
     const dow=dateObj.getDay(); if(dow===0||dow===6) return false;
@@ -1009,9 +1008,13 @@ const db = getFirestore(app);
             const act=p.dataset.act;
             if(act==='edit'){ openEdit(it.id); return; }
             if(act==='delete'){
+              if(!confirm('Biztosan törlöd ezt az időpontot?')) return;
               pushHistory();
-              appts = appts.filter(x=>x.id!==it.id);
+              const idToDelete = it.id;
+              appts = appts.filter(x=>x.id!==idToDelete);
               saveAppts();
+              deleteDoc(doc(db, "appointments", idToDelete))
+                .catch(err => console.error("Nem sikerült törölni az időpontot Firestore-ból:", err));
               render();
               return;
             }
@@ -1299,9 +1302,13 @@ const db = getFirestore(app);
 
   deleteBtn.addEventListener('click',()=>{
     if(!editingId) return modal.close();
+    if(!confirm('Biztosan törlöd ezt az időpontot?')) return;
     pushHistory();
-    appts = appts.filter(a=>a.id!==editingId);
+    const idToDelete = editingId;
+    appts = appts.filter(a=>a.id!==idToDelete);
     saveAppts();
+    deleteDoc(doc(db, "appointments", idToDelete))
+      .catch(err => console.error("Nem sikerült törölni az időpontot Firestore-ból:", err));
     modal.close();
     render();
   });
@@ -1901,6 +1908,8 @@ const db = getFirestore(app);
       });
       appts = appts.filter(a => a.id !== appt.id);
       saveAppts();
+      deleteDoc(doc(db,"appointments", appt.id))
+        .catch(err => console.error("Nem sikerült törölni az időpontot Firestore-ból:", err));
       saveWaitlist();
       render();
     });
