@@ -36,49 +36,6 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; transition:background .25s,color .25s}
-
-  .app-root{display:none}
-  body.authenticated .app-root{display:block}
-  #loginScreen{
-    position:fixed; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(circle at top,#0b1222,#020617);
-    z-index:100;
-  }
-  body.light #loginScreen{background:radial-gradient(circle at top,#e5f0ff,#cbd5f5)}
-  body.authenticated #loginScreen{display:none}
-  .login-card{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:.9rem;
-    padding:1.5rem 1.75rem;
-    width:min(340px,92vw);
-    box-shadow:0 18px 40px rgba(0,0,0,.55);
-  }
-  .login-card h1{
-    margin:0 0 .75rem;
-    font-size:1.15rem;
-  }
-  .login-card p{
-    margin:0 0 .75rem;
-    font-size:.9rem;
-    color:var(--muted);
-  }
-  .login-card input[type="password"]{
-    width:100%;
-    margin:.25rem 0 .5rem;
-  }
-  .login-card button{
-    width:100%;
-    margin-top:.25rem;
-  }
-  .login-error{
-    min-height:1.1em;
-    margin-top:.35rem;
-    font-size:.85rem;
-    color:#f97316;
-  }
-
   header{position:sticky;top:0;z-index:20;background:rgba(17,24,39,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
   body.light header{background:rgba(255,255,255,.9)}
   .bar{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;max-width:1400px;margin:0 auto}
@@ -88,6 +45,33 @@
   button:hover{border-color:#334155}
   button:disabled{opacity:.5;cursor:not-allowed}
   input[type="text"], input[type="date"], input[type="time"], select, textarea{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:.5rem .75rem;border-radius:.6rem}
+
+  .menu-wrap{position:relative}
+  .menu-dropdown{
+    position:absolute;
+    right:0;
+    top:calc(100% + 4px);
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:.6rem;
+    padding:.25rem 0;
+    box-shadow:0 8px 20px rgba(0,0,0,.35);
+    min-width:220px;
+    display:none;
+    z-index:30;
+  }
+  .menu-dropdown button{
+    width:100%;
+    justify-content:flex-start;
+    border-radius:0;
+    border:none;
+    background:transparent;
+    padding:.45rem .75rem;
+    text-align:left;
+    font-size:.9rem;
+  }
+  .menu-dropdown button:hover{background:rgba(15,23,42,.85);}
+  body.light .menu-dropdown button:hover{background:#f3f4f6;}
 
   .layout{
     display:grid;
@@ -243,22 +227,11 @@
 </style>
 </head>
 <body>
-
-<div id="loginScreen">
-  <div class="login-card">
-    <h1>Belépés az időpontfoglalóba</h1>
-    <p>Add meg a rendelő jelszavát.</p>
-    <input id="loginPass" type="password" placeholder="Jelszó">
-    <button id="loginBtn">Belépés</button>
-    <div id="loginError" class="login-error"></div>
-  </div>
-</div>
-
-<div id="appRoot" class="app-root">
 <header id="appHeader">
   <div class="bar">
     <div class="title">🦷 Heti időpontfoglaló – minta</div>
     <div class="spacer"></div>
+    <span id="syncInfo" style="font-size:.8rem;opacity:.7;margin-right:.5rem;"></span>
     <div class="searchbox">
       <input id="search" type="text" placeholder="Keresés: páciens név…" autocomplete="off" />
       <div id="searchResults" class="search-results"></div>
@@ -267,9 +240,17 @@
     <button id="offBtn">+ Szabadság</button>
     <button id="newBtn">+ Új</button>
     <button id="findBtn">🔍 Szabad idő</button>
-    <button id="syncBtn" title="Szinkronizálás a felhővel">☁ Szinkron</button>
     <button id="themeBtn" title="Nappali / Éjszakai mód">🌞</button>
-    <button id="logoutBtn" title="Kijelentkezés">⎋</button>
+    <div class="menu-wrap">
+      <button id="menuBtn" title="Beállítások és felhő szinkron">⋯</button>
+      <div id="menuDropdown" class="menu-dropdown">
+        <button type="button" id="cloudUploadBtn">💾 Mentés a felhőbe</button>
+        <button type="button" id="cloudDownloadBtn">⬇️ Visszaállítás felhőből</button>
+        <div style="padding:.45rem .75rem;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line);margin-top:.25rem">
+          Visszaállításkor a mostani helyi adatok felülíródnak.
+        </div>
+      </div>
+    </div>
   </div>
   <div id="moveBar" class="movebar">Másolás mód: kattints a cél idősávra (Esc: kilépés)</div>
 </header>
@@ -409,7 +390,6 @@
     </div>
   </form>
 </dialog>
-</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
@@ -435,60 +415,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 (function(){
-  const APP_PASSWORD = 'fogaszat2025';
-
-  const loginScreen = document.getElementById('loginScreen');
-  const appRoot = document.getElementById('appRoot');
-  const loginInput = document.getElementById('loginPass');
-  const loginBtn = document.getElementById('loginBtn');
-  const loginError = document.getElementById('loginError');
-  const logoutBtn = document.getElementById('logoutBtn');
-
-  function setAuthenticated(on){
-    if(on){
-      document.body.classList.add('authenticated');
-      localStorage.setItem('scheduler_logged_in','1');
-    } else {
-      document.body.classList.remove('authenticated');
-      localStorage.removeItem('scheduler_logged_in');
-    }
-  }
-
-  const wasLogged = localStorage.getItem('scheduler_logged_in') === '1';
-  setAuthenticated(wasLogged);
-
-  function handleLogin(){
-    const value = (loginInput.value || '').trim();
-    if(value === APP_PASSWORD){
-      loginError.textContent = '';
-      setAuthenticated(true);
-      loginInput.value = '';
-    } else {
-      loginError.textContent = 'Hibás jelszó.';
-    }
-  }
-
-  if(loginBtn){
-    loginBtn.addEventListener('click', handleLogin);
-  }
-  if(loginInput){
-    loginInput.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter'){
-        handleLogin();
-      }
-    });
-  }
-  if(logoutBtn){
-    logoutBtn.addEventListener('click', ()=>{
-      setAuthenticated(false);
-      if(loginInput){
-        loginInput.value = '';
-        loginError.textContent = '';
-        loginInput.focus();
-      }
-    });
-  }
-
   const HOUR_START=8, HOUR_END=19, SLOT_MIN=15, SLOT_H=36;
 
   const themeBtn = document.getElementById('themeBtn');
@@ -515,7 +441,6 @@ const db = getFirestore(app);
   const undoBtn=document.getElementById('undoBtn');
   const offBtn=document.getElementById('offBtn');
   const findBtn=document.getElementById('findBtn');
-  const syncBtn=document.getElementById('syncBtn');
   const toast=document.getElementById('toast');
 
   const side=document.getElementById('side');
@@ -523,6 +448,12 @@ const db = getFirestore(app);
 
   const searchInput=document.getElementById('search');
   const searchResults=document.getElementById('searchResults');
+
+  const syncInfo = document.getElementById('syncInfo');
+  const menuBtn = document.getElementById('menuBtn');
+  const menuDropdown = document.getElementById('menuDropdown');
+  const cloudUploadBtn = document.getElementById('cloudUploadBtn');
+  const cloudDownloadBtn = document.getElementById('cloudDownloadBtn');
 
   const modal=document.getElementById('modal');
   const modalTitle=document.getElementById('modalTitle');
@@ -572,6 +503,126 @@ const db = getFirestore(app);
   const wlClear= document.getElementById('wlClear');
   const wlPane = document.getElementById('waitlistPane');
 
+  if(menuBtn && menuDropdown){
+    menuBtn.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      const visible = menuDropdown.style.display === 'block';
+      menuDropdown.style.display = visible ? 'none' : 'block';
+    });
+    document.addEventListener('click',(e)=>{
+      if(!menuDropdown.contains(e.target) && e.target !== menuBtn){
+        menuDropdown.style.display = 'none';
+      }
+    });
+  }
+
+  async function replaceCollection(collName, items){
+    const snap = await getDocs(collection(db, collName));
+    const deletions = snap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deletions);
+    const writes = (items || []).map(obj => setDoc(doc(db, collName, obj.id), obj));
+    await Promise.all(writes);
+  }
+
+  async function syncAppointmentsToFirestore(){
+    try{
+      await replaceCollection("appointments", appts);
+    }catch(err){
+      console.error("Nem sikerült az appointments kollekciót menteni:", err);
+      throw err;
+    }
+  }
+  async function syncTimeoffsToFirestore(){
+    try{
+      await replaceCollection("timeoffs", timeoffs);
+    }catch(err){
+      console.error("Nem sikerült a timeoffs kollekciót menteni:", err);
+      throw err;
+    }
+  }
+  async function syncWaitlistToFirestore(){
+    try{
+      await replaceCollection("waitlist", waitlist);
+    }catch(err){
+      console.error("Nem sikerült a waitlist kollekciót menteni:", err);
+      throw err;
+    }
+  }
+  async function syncPatientsToFirestore(){
+    try{
+      await replaceCollection("patients", patients);
+    }catch(err){
+      console.error("Nem sikerült a patients kollekciót menteni:", err);
+      throw err;
+    }
+  }
+
+  async function restoreFromCloud(){
+    try{
+      const [pSnap, aSnap, tSnap, wSnap] = await Promise.all([
+        getDocs(collection(db, "patients")),
+        getDocs(collection(db, "appointments")),
+        getDocs(collection(db, "timeoffs")),
+        getDocs(collection(db, "waitlist"))
+      ]);
+
+      const newPatients = [];
+      const newAppts = [];
+      const newTimeoffs = [];
+      const newWaitlist = [];
+
+      pSnap.forEach(d=> newPatients.push(d.data()));
+      aSnap.forEach(d=> newAppts.push(d.data()));
+      tSnap.forEach(d=> newTimeoffs.push(d.data()));
+      wSnap.forEach(d=> newWaitlist.push(d.data()));
+
+      patients = Array.isArray(newPatients) ? newPatients : [];
+      appts = Array.isArray(newAppts) ? newAppts : [];
+      timeoffs = Array.isArray(newTimeoffs) ? newTimeoffs : [];
+      waitlist = Array.isArray(newWaitlist) ? newWaitlist : [];
+
+      ensurePatientsFromAppts();
+      saveAppts();
+      saveTimeoffs();
+      saveWaitlist();
+      refreshPatientDatalist();
+      render();
+      localStorage.setItem('cloud_last_sync', String(Date.now()));
+      updateSyncInfo();
+      alert('Adatok sikeresen visszaállítva a felhőből.');
+    }catch(err){
+      console.error("Nem sikerült a felhőből visszaállítani:", err);
+      alert('Hiba történt a felhőből visszaállítás közben. Ellenőrizd az internetkapcsolatot.');
+    }
+  }
+
+  if(cloudUploadBtn){
+    cloudUploadBtn.addEventListener('click', async ()=>{
+      menuDropdown.style.display='none';
+      try{
+        await Promise.all([
+          syncPatientsToFirestore(),
+          syncAppointmentsToFirestore(),
+          syncTimeoffsToFirestore(),
+          syncWaitlistToFirestore()
+        ]);
+        localStorage.setItem('cloud_last_sync', String(Date.now()));
+        updateSyncInfo();
+        alert('Adatok sikeresen mentve a felhőbe.');
+      }catch(err){
+        alert('Hiba történt a felhő mentés közben. Ellenőrizd az internetkapcsolatot.');
+      }
+    });
+  }
+  if(cloudDownloadBtn){
+    cloudDownloadBtn.addEventListener('click', async ()=>{
+      menuDropdown.style.display='none';
+      const ok = confirm('Biztosan visszaállítod az adatokat a felhőből? A jelenlegi helyi módosítások elveszhetnek.');
+      if(!ok) return;
+      await restoreFromCloud();
+    });
+  }
+
   function pad(n){return String(n).padStart(2,'0')}
   function minToTime(min){const hh=Math.floor(min/60), mm=min%60; return `${pad(hh)}:${pad(mm)}`}
 
@@ -602,39 +653,6 @@ const db = getFirestore(app);
   let timeoffs=loadTimeoffs();
   let waitlist=loadWaitlist();
   let patients=[];
-
-  async function syncAppointmentsToFirestore(){
-    try{
-      const ops = appts.map(a=> setDoc(doc(db, "appointments", a.id), a));
-      await Promise.all(ops);
-    }catch(err){
-      console.error("Nem sikerült az appointments kollekciót menteni:", err);
-    }
-  }
-  async function syncTimeoffsToFirestore(){
-    try{
-      const ops = timeoffs.map(t=> setDoc(doc(db, "timeoffs", t.id), t));
-      await Promise.all(ops);
-    }catch(err){
-      console.error("Nem sikerült a timeoffs kollekciót menteni:", err);
-    }
-  }
-  async function syncWaitlistToFirestore(){
-    try{
-      const ops = waitlist.map(w=> setDoc(doc(db, "waitlist", w.id), w));
-      await Promise.all(ops);
-    }catch(err){
-      console.error("Nem sikerült a waitlist kollekciót menteni:", err);
-    }
-  }
-  async function syncPatientsToFirestore(){
-    try{
-      const ops = patients.map(p=> setDoc(doc(db, "patients", p.id), p));
-      await Promise.all(ops);
-    }catch(err){
-      console.error("Nem sikerült a patients kollekciót menteni:", err);
-    }
-  }
 
   let editingId=null;
   let expandedDayIndex=null;
@@ -1342,14 +1360,12 @@ const db = getFirestore(app);
     if(p){
       if(phone && !p.phone){
         p.phone = phone;
-        syncPatientsToFirestore();
       }
       return p;
     }
     const id = 'p_'+Math.random().toString(36).slice(2,9);
     p = { id, name, nameLower, phone };
     patients.push(p);
-    syncPatientsToFirestore();
     return p;
   }
 
@@ -1477,7 +1493,7 @@ const db = getFirestore(app);
   function onResizeMove(e){
     if(!resizing) return;
     const a=appts.find(x=>x.id===resizing.id); if(!a) return;
-    let relY = Math.max(0, Math.min(resizing.rect.height, e.clientY - resizing.rect.top - (parseFloat(getComputedStyle(resizing.node.parentElement).getPropertyValue('padding-top'))||0)));
+    let relY = Math.max(0, Math.min(resizing.rect.height, e.clientY - resizing.rect.top - (parseFloat(getComputedStyle(resizing.node.parentElement).paddingTop)||0)));
     const snapIdx = Math.round(relY / (SLOT_H));
     const snapAbs = HOUR_START*60 + snapIdx*SLOT_MIN;
 
@@ -1661,7 +1677,6 @@ const db = getFirestore(app);
           }
         });
 
-        syncPatientsToFirestore();
         saveAppts();
         refreshPatientDatalist();
         openPatientProfileById(patient.id);
@@ -2074,78 +2089,29 @@ const db = getFirestore(app);
     }
   }
 
-  render();
-
-  (async function syncFromFirestoreOnLoad(){
-    try{
-      const [pSnap, aSnap, tSnap, wSnap] = await Promise.all([
-        getDocs(collection(db, "patients")),
-        getDocs(collection(db, "appointments")),
-        getDocs(collection(db, "timeoffs")),
-        getDocs(collection(db, "waitlist"))
-      ]);
-
-      if(!pSnap.empty || !aSnap.empty || !tSnap.empty || !wSnap.empty){
-        patients = [];
-        pSnap.forEach(d=> patients.push(d.data()));
-        appts = [];
-        aSnap.forEach(d=> appts.push(d.data()));
-        timeoffs = [];
-        tSnap.forEach(d=> timeoffs.push(d.data()));
-        waitlist = [];
-        wSnap.forEach(d=> waitlist.push(d.data()));
-
-        ensurePatientsFromAppts();
-        await syncPatientsToFirestore();
-        saveAppts();
-        saveTimeoffs();
-        saveWaitlist();
-        refreshPatientDatalist();
-        render();
-      } else {
-        ensurePatientsFromAppts();
-        await syncPatientsToFirestore();
-        await syncAppointmentsToFirestore();
-        await syncTimeoffsToFirestore();
-        await syncWaitlistToFirestore();
-        refreshPatientDatalist();
-        render();
-      }
-    }catch(err){
-      console.warn("Nem sikerült Firestore-ból betölteni:", err);
-      ensurePatientsFromAppts();
-      refreshPatientDatalist();
-      render();
+  function updateSyncInfo(){
+    if(!syncInfo) return;
+    const raw = localStorage.getItem('cloud_last_sync');
+    if(!raw){
+      syncInfo.textContent = '';
+      return;
     }
-  })();
-
-  if(syncBtn){
-    syncBtn.addEventListener('click', async ()=>{
-      if(syncBtn.disabled) return;
-      const original = syncBtn.textContent;
-      syncBtn.disabled = true;
-      syncBtn.textContent = '☁ Szinkron...';
-      try{
-        await syncPatientsToFirestore();
-        await syncAppointmentsToFirestore();
-        await syncTimeoffsToFirestore();
-        await syncWaitlistToFirestore();
-        showToast('Sikeres szinkronizálás.');
-      }catch(err){
-        console.error('Szinkron hiba:', err);
-        showToast('Nem sikerült szinkronizálni (ellenőrizd az internetet).');
-      }finally{
-        syncBtn.disabled = false;
-        syncBtn.textContent = original;
-      }
-    });
+    const d = new Date(Number(raw));
+    if(isNaN(d.getTime())){
+      syncInfo.textContent = '';
+      return;
+    }
+    syncInfo.textContent = 'Utolsó felhő mentés: ' + d.toLocaleString('hu-HU');
   }
 
-  function showToast(message){
-    if(!toast) return;
-    toast.textContent = message || 'Erre az idősávra SZABADSÁG van beállítva.';
+  ensurePatientsFromAppts();
+  refreshPatientDatalist();
+  updateSyncInfo();
+  render();
+
+  function showToast(){
     toast.classList.add('show');
-    setTimeout(()=> toast.classList.remove('show'), 2000);
+    setTimeout(()=> toast.classList.remove('show'), 1600);
   }
   function showNoResult(){
     fResult.innerHTML = `<div style="padding:.6rem;border:1px solid var(--line);border-radius:.5rem">Nem találtam a feltételeknek megfelelő szabad idősávot.</div>`;
