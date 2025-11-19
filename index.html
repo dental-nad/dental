@@ -82,8 +82,16 @@
     margin:0;
     padding:0 0 1rem 0;
   }
+  .layout.wl-collapsed{
+    grid-template-columns:minmax(0,1fr);
+  }
+
   .waitlist{position:sticky;top:calc(var(--headerH) + 8px);align-self:start;background:var(--panel);border:1px solid var(--line);border-radius:.75rem; padding:.75rem; margin-left:1rem}
-  .wl-title{font-weight:700; margin-bottom:.5rem}
+  .waitlist.collapsed{display:none;}
+  .wl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem}
+  .wl-title{font-weight:700}
+  .wl-toggle{padding:.15rem .45rem;font-size:.75rem;line-height:1;border-radius:.4rem}
+  .wl-body{margin-top:.35rem}
   .wl-form{display:grid; grid-template-columns: 1fr 90px; gap:.5rem; margin-bottom:.75rem}
   .wl-form > div{grid-column:1/3}
   .wl-list{display:flex; flex-direction:column; gap:.5rem; max-height:50vh; overflow:auto}
@@ -106,7 +114,7 @@
   body.light .daycol{background:var(--panel)}
   .slot{height:var(--slotH);border-bottom:1px dashed var(--line-dash)}
   .slot.today{background:rgba(34,211,238,.06)}
-  .nowline{position:absolute;left:0;right:0;height:2px;background:var(--accent);box-shadow:0 0 8px var(--nowline-shadow);pointer-events:none}
+  .nowline{position:absolute;left:0;right:0;height:2px;background:var(--accent);box-shadow:var(--nowline-shadow);pointer-events:none}
 
   .appt{position:absolute;border:1px solid var(--appt-border);background:linear-gradient(180deg,var(--appt-bg-grad1),var(--appt-bg-grad2));color:var(--appt-text);border-radius:.6rem;padding:.35rem .5rem;font-size:.86rem;box-shadow:0 6px 16px var(--appt-shadow);cursor:grab;min-height:44px;overflow:hidden;transition:.2s}
   .appt:active{cursor:grabbing}
@@ -240,6 +248,7 @@
     <button id="offBtn">+ Szabadság</button>
     <button id="newBtn">+ Új</button>
     <button id="findBtn">🔍 Szabad idő</button>
+    <button id="listsBtn">📋 Listák</button>
     <button id="themeBtn" title="Nappali / Éjszakai mód">🌞</button>
     <div class="menu-wrap">
       <button id="menuBtn" title="Beállítások és felhő szinkron">⋯</button>
@@ -257,21 +266,26 @@
 
 <div class="layout">
   <aside class="waitlist" id="waitlistPane">
-    <div class="wl-title">Várólista</div>
-    <div class="wl-form">
-      <input id="wlName" placeholder="Név">
-      <select id="wlDur">
-        <option value="15">15p</option>
-        <option value="30" selected>30p</option>
-        <option value="45">45p</option>
-        <option value="60">60p</option>
-        <option value="90">90p</option>
-      </select>
-      <button id="wlAdd">Hozzáadás</button>
+    <div class="wl-header">
+      <div class="wl-title">Várólista</div>
+      <button id="wlToggle" class="wl-toggle" type="button">▼</button>
     </div>
-    <div class="wl-list" id="wlList"></div>
-    <div style="margin-top:.5rem; display:flex; gap:.5rem">
-      <button id="wlClear">Várólista törlése</button>
+    <div class="wl-body" id="wlBody">
+      <div class="wl-form">
+        <input id="wlName" placeholder="Név">
+        <select id="wlDur">
+          <option value="15">15p</option>
+          <option value="30" selected>30p</option>
+          <option value="45">45p</option>
+          <option value="60">60p</option>
+          <option value="90">90p</option>
+        </select>
+        <button id="wlAdd">Hozzáadás</button>
+      </div>
+      <div class="wl-list" id="wlList"></div>
+      <div style="margin-top:.5rem; display:flex; gap:.5rem">
+        <button id="wlClear">Várólista törlése</button>
+      </div>
     </div>
   </aside>
 
@@ -391,6 +405,24 @@
   </form>
 </dialog>
 
+<dialog id="listsModal">
+  <div style="padding:1rem;border-bottom:1px solid var(--line);font-weight:700">Listák</div>
+  <form id="listsForm" method="dialog">
+    <div style="padding:1rem;display:flex;flex-direction:column;gap:.75rem">
+      <div>
+        <label>Válassz listát</label>
+        <select id="listsSelect">
+          <option value="plus1">+1 lista – összes jövőbeli +1-es időpont</option>
+        </select>
+      </div>
+      <div id="listsResult" style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:.5rem;padding:.25rem"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;padding:0 1rem 1rem">
+      <button type="button" id="listsCloseBtn">Bezár</button>
+    </div>
+  </form>
+</dialog>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import {
@@ -441,6 +473,7 @@ const db = getFirestore(app);
   const undoBtn=document.getElementById('undoBtn');
   const offBtn=document.getElementById('offBtn');
   const findBtn=document.getElementById('findBtn');
+  const listsBtn=document.getElementById('listsBtn');
   const toast=document.getElementById('toast');
 
   const side=document.getElementById('side');
@@ -496,12 +529,20 @@ const db = getFirestore(app);
   const fClearMark=document.getElementById('fClearMark');
   const fNextBtn=document.getElementById('fNextBtn');
 
+  const listsModal=document.getElementById('listsModal');
+  const listsForm=document.getElementById('listsForm');
+  const listsSelect=document.getElementById('listsSelect');
+  const listsResult=document.getElementById('listsResult');
+  const listsCloseBtn=document.getElementById('listsCloseBtn');
+
   const wlList = document.getElementById('wlList');
   const wlName = document.getElementById('wlName');
   const wlDur  = document.getElementById('wlDur');
   const wlAdd  = document.getElementById('wlAdd');
   const wlClear= document.getElementById('wlClear');
   const wlPane = document.getElementById('waitlistPane');
+  const wlToggle = document.getElementById('wlToggle');
+  const layoutRoot = document.querySelector('.layout');
 
   if(menuBtn && menuDropdown){
     menuBtn.addEventListener('click',(e)=>{
@@ -1849,6 +1890,8 @@ const db = getFirestore(app);
             return sameDate(ad, d);
           });
           for(const it of items){
+            const S=parseStatuses(it.status);
+            if(S.has('cancelled')) continue;
             const s1=t, e1=t+criteria.duration;
             const s2=toMin(it.startTime), e2=s2+it.duration;
             if(Math.max(s1,s2) < Math.min(e1,e2)) { continue outer; }
@@ -1879,6 +1922,8 @@ const db = getFirestore(app);
       outer:
       for(let t=criteria.fromMin; t+criteria.duration<=criteria.toMin; t+=SLOT_MIN){
         for(const it of items){
+          const S=parseStatuses(it.status);
+          if(S.has('cancelled')) continue;
           const s1=t, e1=t+criteria.duration;
           const s2=toMin(it.startTime), e2=s2+it.duration;
           if(Math.max(s1,s2) < Math.min(e1,e2)) { continue outer; }
@@ -2102,6 +2147,108 @@ const db = getFirestore(app);
       return;
     }
     syncInfo.textContent = 'Utolsó felhő mentés: ' + d.toLocaleString('hu-HU');
+  }
+
+  function applyWaitlistCollapsed(collapsed){
+    if(!layoutRoot || !wlPane) return;
+    layoutRoot.classList.toggle('wl-collapsed', collapsed);
+    wlPane.classList.toggle('collapsed', collapsed);
+    if(wlToggle) wlToggle.textContent = collapsed ? '▶' : '▼';
+  }
+
+  const savedWL = localStorage.getItem('waitlist_collapsed');
+  let wlCollapsed = savedWL === '1';
+  applyWaitlistCollapsed(wlCollapsed);
+
+  if(wlToggle){
+    wlToggle.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      wlCollapsed = !wlCollapsed;
+      applyWaitlistCollapsed(wlCollapsed);
+      localStorage.setItem('waitlist_collapsed', wlCollapsed ? '1' : '0');
+    });
+  }
+
+  if(listsBtn){
+    listsBtn.addEventListener('click', ()=>{
+      renderCurrentList();
+      listsModal.showModal();
+    });
+  }
+  if(listsCloseBtn){
+    listsCloseBtn.addEventListener('click', ()=> listsModal.close());
+  }
+  if(listsSelect){
+    listsSelect.addEventListener('change', ()=> renderCurrentList());
+  }
+
+  function renderCurrentList(){
+    const val = listsSelect ? listsSelect.value : 'plus1';
+    if(val === 'plus1'){
+      renderPlusOneList();
+    }
+  }
+
+  function renderPlusOneList(){
+    if(!listsResult) return;
+    const now = new Date();
+    const results = appts
+      .filter(a=>{
+        const S=parseStatuses(a.status);
+        if(!S.has('plus1')) return false;
+        if(S.has('cancelled')) return false;
+        const d=parseDayKeyLocal(a.dayKey);
+        const [hh,mm]=(a.startTime||'00:00').split(':').map(Number);
+        const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh||0, mm||0, 0,0);
+        return dt.getTime() >= now.getTime();
+      })
+      .sort((a,b)=>{
+        const da=parseDayKeyLocal(a.dayKey), db=parseDayKeyLocal(b.dayKey);
+        const ta = da.getTime() + toMin(a.startTime||'00:00')*60000;
+        const tb = db.getTime() + toMin(b.startTime||'00:00')*60000;
+        return ta - tb;
+      });
+
+    if(!results.length){
+      listsResult.innerHTML = '<div style="padding:.5rem;font-size:.85rem;color:var(--muted)">Nincs jövőbeli +1-es időpont.</div>';
+      return;
+    }
+
+    listsResult.innerHTML = results.map(a=>{
+      const d=parseDayKeyLocal(a.dayKey);
+      const dowLabel = ['H','K','Sze','Cs','P','Szo','V'][d.getDay()===0?6:d.getDay()-1] || '';
+      const patientName = a.patientName || '';
+      return `
+        <div class="row plus1" data-appt-id="${a.id}">
+          <div class="title">${fmtDate(d)} • ${dowLabel} • ${escapeHtml(a.startTime||'')}</div>
+          <div style="margin:.2rem 0;opacity:.9">${escapeHtml(patientName)}</div>
+          <div><span class="chip plus1">+1</span></div>
+        </div>
+      `;
+    }).join('');
+
+    [...listsResult.querySelectorAll('.row[data-appt-id]')].forEach(row=>{
+      row.addEventListener('click', ()=>{
+        const id=row.dataset.apptId;
+        const appt=appts.find(x=>x.id===id);
+        if(!appt) return;
+        const d=parseDayKeyLocal(appt.dayKey);
+        currentMonday = startOfWeek(d);
+        listsModal.close();
+        render();
+        setTimeout(()=>{
+          const el=document.querySelector(`.appt[data-id="${id}"]`);
+          if(el){
+            el.scrollIntoView({block:'center', inline:'center'});
+            const prev=document.querySelector('.appt.picked');
+            if(prev && prev!==el) prev.classList.remove('picked');
+            pickedId=id;
+            el.classList.add('picked');
+            updateMoveBar();
+          }
+        },0);
+      });
+    });
   }
 
   ensurePatientsFromAppts();
