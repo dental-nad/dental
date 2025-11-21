@@ -248,6 +248,7 @@
     <button id="offBtn">+ Szabadság</button>
     <button id="newBtn">+ Új</button>
     <button id="findBtn">🔍 Szabad idő</button>
+    <button id="listsBtn">📋 Listák</button>
     <button id="themeBtn" title="Nappali / Éjszakai mód">🌞</button>
     <div class="menu-wrap">
       <button id="menuBtn" title="Beállítások és felhő szinkron">⋯</button>
@@ -389,7 +390,6 @@
         <button type="submit" id="fSearchBtn">Keresés</button>
         <button type="button" id="fNextBtn" disabled>Következő találat ▶</button>
         <button type="button" id="fClearMark">Jelölés törlése</button>
-        <button type="button" id="fListsBtn">Listák</button>
       </div>
 
       <div id="fResult" style="grid-column:1/3; margin-top:.5rem"></div>
@@ -398,6 +398,16 @@
       <button type="button" id="findCancelBtn">Bezár</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="listsModal">
+  <div style="padding:1rem;border-bottom:1px solid var(--line);font-weight:700">Listák</div>
+  <div style="padding:1rem">
+    <div id="listsContent"></div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem">
+      <button type="button" id="listsCloseBtn">Bezár</button>
+    </div>
+  </div>
 </dialog>
 
 <script type="module">
@@ -450,6 +460,7 @@ const db = getFirestore(app);
   const undoBtn=document.getElementById('undoBtn');
   const offBtn=document.getElementById('offBtn');
   const findBtn=document.getElementById('findBtn');
+  const listsBtn=document.getElementById('listsBtn');
   const toast=document.getElementById('toast');
 
   const side=document.getElementById('side');
@@ -504,7 +515,10 @@ const db = getFirestore(app);
   const findCancelBtn=document.getElementById('findCancelBtn');
   const fClearMark=document.getElementById('fClearMark');
   const fNextBtn=document.getElementById('fNextBtn');
-  const fListsBtn=document.getElementById('fListsBtn');
+
+  const listsModal=document.getElementById('listsModal');
+  const listsContent=document.getElementById('listsContent');
+  const listsCloseBtn=document.getElementById('listsCloseBtn');
 
   const wlList = document.getElementById('wlList');
   const wlName = document.getElementById('wlName');
@@ -1864,8 +1878,8 @@ const db = getFirestore(app);
     applySuggestion(res, state.criteria);
   });
 
-  if(fListsBtn){
-    fListsBtn.addEventListener('click',()=>{
+  if(listsBtn && listsModal && listsContent){
+    listsBtn.addEventListener('click',()=>{
       clearSuggest();
       const now = new Date();
       const futurePlus = appts
@@ -1878,7 +1892,8 @@ const db = getFirestore(app);
         })
         .sort((a,b)=>tsOfAppt(a)-tsOfAppt(b));
       if(!futurePlus.length){
-        fResult.innerHTML = `<div style="padding:.6rem;border:1px solid var(--line);border-radius:.5rem">Nincs jövőbeli +1 státuszú időpont.</div>`;
+        listsContent.innerHTML = `<div style="padding:.6rem;border:1px solid var(--line);border-radius:.5rem">Nincs jövőbeli +1 státuszú időpont.</div>`;
+        listsModal.showModal();
         return;
       }
       const items = futurePlus.map(a=>{
@@ -1886,13 +1901,14 @@ const db = getFirestore(app);
         const dayIdx = (d.getDay()+6)%7;
         return `<li data-appt-id="${a.id}" style="margin:.2rem 0;cursor:pointer"><strong>${fmtDate(d)} • ${['H','K','Sze','Cs','P'][dayIdx]} • ${escapeHtml(a.startTime)}</strong> – ${escapeHtml(a.patientName||'')}</li>`;
       }).join('');
-      fResult.innerHTML = `
+      listsContent.innerHTML = `
         <div style="padding:.6rem;border:1px solid var(--line);border-radius:.5rem">
           <div style="margin-bottom:.4rem"><strong>Jövőbeli +1-es időpontok</strong></div>
           <ul style="margin:0;padding-left:1.1rem;font-size:.9rem">${items}</ul>
         </div>
       `;
-      fResult.querySelectorAll('li[data-appt-id]').forEach(li=>{
+      listsModal.showModal();
+      listsContent.querySelectorAll('li[data-appt-id]').forEach(li=>{
         li.addEventListener('click',()=>{
           const id = li.dataset.apptId;
           const appt = appts.find(x=>x.id===id);
@@ -1900,6 +1916,7 @@ const db = getFirestore(app);
           const date = parseDayKeyLocal(appt.dayKey);
           currentMonday = startOfWeek(date);
           render();
+          listsModal.close();
           setTimeout(()=>{
             const el = document.querySelector(`.appt[data-id="${id}"]`);
             if(el){
@@ -1921,6 +1938,10 @@ const db = getFirestore(app);
         });
       });
     });
+  }
+
+  if(listsCloseBtn && listsModal){
+    listsCloseBtn.addEventListener('click', ()=> listsModal.close());
   }
 
   function onlyCancelled(S){
